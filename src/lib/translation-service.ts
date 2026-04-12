@@ -108,8 +108,15 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
     generationConfig: { temperature: 0.1 }
   };
 
-  // We'll try the most likely models first for streaming
-  const models = ["gemini-2.0-flash", "gemini-1.5-flash-002", "gemini-1.5-flash"];
+  // 廣泛嘗試多種模型以避免單一型號配額問題
+  const models = [
+    "gemini-2.0-flash", 
+    "gemini-1.5-flash-002", 
+    "gemini-1.5-flash", 
+    "gemini-2.0-flash-exp", 
+    "gemini-1.5-pro-002",
+    "gemini-1.5-pro"
+  ];
   let lastError: any = null;
 
   for (const modelId of models) {
@@ -124,7 +131,8 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `HTTP ${response.status}`);
+        const errMsg = errData.error?.message || `HTTP ${response.status}`;
+        throw new Error(errMsg);
       }
 
       const reader = response.body?.getReader();
@@ -159,11 +167,19 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
       return fullText;
     } catch (err: any) {
       lastError = err;
-      console.warn(`Streaming failed for ${modelId}:`, err.message);
-      if (err.message.includes("429")) continue; // Try next on quota
-      break; // Exit on other fatal errors
+      const errorMsg = (err.message || "").toLowerCase();
+      console.warn(`[Stream] Model ${modelId} failed:`, errorMsg);
+      
+      // 偵測配額或是型號不支援錯誤，嘗試下一個型號
+      const isQuotaError = errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("resource_exhausted") || errorMsg.includes("limit");
+      const isModelError = errorMsg.includes("404") || errorMsg.includes("not found") || errorMsg.includes("invalid");
+      
+      if (isQuotaError || isModelError) {
+        continue; 
+      }
+      break; // 其他致命錯誤則中斷
     }
   }
 
-  throw lastError || new Error("Streaming translation failed");
+  throw lastError || new Error("Streaming translation failed after trying all models");
 }
