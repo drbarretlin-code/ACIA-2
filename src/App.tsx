@@ -1059,28 +1059,11 @@ export default function App() {
     try {
       // 1. 優先路徑：若錄音正在進行，優先嘗試 WebSocket 發送（零配額消耗）
       if (isRecording && sessionRef.current) {
-        console.log("[handleSendText] Path 1: Probing sessionRef.current prototype chain...");
         const session = sessionRef.current as any;
         
-        // 🕵️ Deep Probe: Find METHODS on the object and its prototype
-        const allProperties = new Set<string>();
-        let currentObj = session;
-        while (currentObj && currentObj !== Object.prototype) {
-          Object.getOwnPropertyNames(currentObj).forEach(prop => {
-             try {
-               if (typeof session[prop] === 'function') allProperties.add(prop);
-             } catch(e) {}
-          });
-          currentObj = Object.getPrototypeOf(currentObj);
-        }
-        
-        const availableMethods = Array.from(allProperties);
-        // 🚀 CRITICAL: Print names as string so user doesn't need to click to expand
-        console.log("[handleSendText] Found Available Methods: " + availableMethods.join(', '));
-
-        // 🚀 Multi-Method Try (Expanded Candidates)
+        // 🚀 Multi-Method Try (已識別出正確方法：sendClientContent)
         const textMessage = { parts: [{ text: currentInput }] };
-        const candidates = ['send', 'sendMessage', 'sendInput', 'sendContent', 'postMessage', 'input', 'write', 'emit', 'submit'];
+        const candidates = ['send', 'sendClientContent', 'sendMessage', 'sendInput', 'sendContent'];
         const foundMethod = candidates.find(m => typeof session[m] === 'function');
 
         if (foundMethod) {
@@ -1093,7 +1076,7 @@ export default function App() {
             console.warn(`[handleSendText] Path 1 call failed to ${foundMethod}:`, sendErr.message);
           }
         } else {
-          console.warn("[handleSendText] Path 1: No valid send method found. Please check the method names list above.");
+          console.warn("[handleSendText] Path 1: No valid send method found. Falling back to Path 2...");
         }
       }
 
