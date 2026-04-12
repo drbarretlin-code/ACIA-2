@@ -1225,6 +1225,7 @@ export default function App() {
 
   const stopLiveSession = async () => {
     isLiveRef.current = false;
+    setIsNoiseShieldActive(false); // 重置噪音屏蔽狀態
 
     if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
       console.log("Room session stopped, but not closing room automatically.");
@@ -2600,13 +2601,16 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 
                 <button 
                   onClick={() => setIsNoiseShieldActive(prev => !prev)}
+                  disabled={!isRecording}
                   className={cn(
                     "p-2.5 rounded-xl border transition-all shrink-0 flex items-center gap-2",
                     isNoiseShieldActive 
                       ? "bg-amber-100 border-amber-300 text-amber-600 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-400" 
-                      : "bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-600"
+                      : !isRecording
+                        ? "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-50"
+                        : "bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-600"
                   )}
-                  title={isNoiseShieldActive ? "Noise Shield Active (Mic Muted)" : "Noise Shield Inactive (Mic Live)"}
+                  title={!isRecording ? "請先開啟錄音功能" : isNoiseShieldActive ? "Noise Shield Active (Mic Muted)" : "Noise Shield Inactive (Mic Live)"}
                 >
                   <Shield className={cn("w-4 h-4", isNoiseShieldActive && "animate-pulse")} />
                   <span className="text-xs font-medium hidden sm:inline">
@@ -2630,9 +2634,9 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
 
                 <button
                   onClick={handleSendText}
-                  disabled={!inputText.trim() || !isNoiseShieldActive}
+                  disabled={!inputText.trim() || !isRecording || !isNoiseShieldActive}
                   className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-400 dark:disabled:bg-slate-700 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all shrink-0"
-                  title={!isNoiseShieldActive ? "請開啟自動感應靜音以發送文字" : ""}
+                  title={!isRecording ? "請先開啟錄音功能" : !isNoiseShieldActive ? "請開啟自動感應靜音以發送文字" : ""}
                 >
                   {isTranslatingText ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
