@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { io, Socket } from 'socket.io-client';
 import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
 import { QRCodeSVG } from 'qrcode.react';
@@ -12,6 +12,7 @@ import { collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, updateD
 import { onAuthStateChanged, User } from 'firebase/auth';
 import toast, { Toaster } from 'react-hot-toast';
 import { translations } from './translations';
+import { translateText } from './lib/translation-service';
 
 // 獨立的 TranscriptItem 元件，使用 React.memo 優化渲染
 const TranscriptItem = React.memo(({ t }: { t: any }) => (
@@ -272,6 +273,12 @@ export default function App() {
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'Equipment Department');
   const [responsiveness, setResponsiveness] = useState(() => localStorage.getItem('responsiveness') || 'normal');
+  
+  // Real-time text translation state
+  const [inputText, setInputText] = useState('');
+  const [translatedPreview, setTranslatedPreview] = useState('');
+  const [isTranslatingText, setIsTranslatingText] = useState(false);
+  const [translationDirection, setTranslationDirection] = useState<'localToClient' | 'clientToLocal'>('localToClient');
   
   // 費用統計相關 state
   const [sessionSeconds, setSessionSeconds] = useState(0);
@@ -991,6 +998,59 @@ export default function App() {
   }, [isDarkMode]);
 
   // 介面翻譯
+  // Debounced translation for text input
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (!inputText.trim()) {
+        setTranslatedPreview('');
+        return;
+      }
+      
+      const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
+      const targetId = translationDirection === 'localToClient' ? clientLang : localLang;
+      
+      const sourceName = LANGUAGES.find(l => l.id === sourceId)?.name || sourceId;
+      const targetName = LANGUAGES.find(l => l.id === targetId)?.name || targetId;
+
+      setIsTranslatingText(true);
+      try {
+        const result = await translateText(inputText, sourceName, targetName, userApiKey || roomApiKey || '');
+        setTranslatedPreview(result);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsTranslatingText(false);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [inputText, translationDirection, localLang, clientLang, userApiKey, roomApiKey]);
+
+  const handleSendText = async () => {
+    if (!inputText.trim() || !translatedPreview.trim() || !user) return;
+
+    const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
+    const targetId = translationDirection === 'localToClient' ? clientLang : localLang;
+
+    const newTranscript: Transcript = {
+      id: Date.now().toString(),
+      original: inputText,
+      translated: translatedPreview,
+      isFinal: true,
+      isTranslating: false,
+      sourceLang: sourceId,
+      targetLang: targetId,
+      createdAt: Date.now(),
+      speakerId: user.uid,
+      speakerName: userName || '匿名',
+      isLocal: true
+    };
+
+    setTranscripts(prev => [...prev, newTranscript]);
+    setInputText('');
+    setTranslatedPreview('');
+  };
+
   const getUiText = (key: string) => {
     let actualKey = key;
     if (key === 'darkMode') {
@@ -2441,6 +2501,68 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 initialTopMostItemIndex={memoizedTranscripts.length - 1}
               />
             )}
+          </div>
+          {/* Text Input Translation Bar */}
+          <div className="border-t border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md p-4">
+            <div className="max-w-4xl mx-auto space-y-3">
+              {/* Translation Preview */}
+              {inputText.trim() && (
+                <div className="flex items-start gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex-1 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100/50 dark:border-blue-800/30 rounded-xl p-3">
+                    <div className="text-[10px] text-blue-500 dark:text-blue-400 font-mono mb-1 uppercase tracking-wider flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      Translation Preview
+                    </div>
+                    <div className="text-sm text-blue-700 dark:text-blue-300 min-h-[1.5rem]">
+                      {isTranslatingText ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Translating...</span>
+                        </div>
+                      ) : (
+                        translatedPreview || '...'
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Input Area */}
+              <div className="flex items-end gap-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                <button 
+                  onClick={() => setTranslationDirection(prev => prev === 'localToClient' ? 'clientToLocal' : 'localToClient')}
+                  className="p-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-all shrink-0 flex items-center gap-2"
+                  title="Switch Language Direction"
+                >
+                  <ArrowRightLeft className={cn("w-4 h-4 transition-transform duration-500", translationDirection === 'clientToLocal' && "rotate-180")} />
+                  <span className="text-xs font-medium hidden sm:inline">
+                    {translationDirection === 'localToClient' ? 'Local → Client' : 'Client → Local'}
+                  </span>
+                </button>
+                
+                <textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Type text to translate..."
+                  className="flex-1 bg-transparent border-none focus:ring-0 resize-none py-2.5 px-1 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 text-[15px] min-h-[44px] max-h-32"
+                  rows={1}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendText();
+                    }
+                  }}
+                />
+
+                <button
+                  onClick={handleSendText}
+                  disabled={!inputText.trim() || !translatedPreview.trim() || isTranslatingText}
+                  className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-400 dark:disabled:bg-slate-700 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all shrink-0"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
