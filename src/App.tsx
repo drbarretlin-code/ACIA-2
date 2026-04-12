@@ -1059,31 +1059,36 @@ export default function App() {
     try {
       // 1. 優先路徑：若錄音會話開啟，嘗試透過 WebSocket 發送文字（零配額消耗、極速）
       if (isLiveRef.current && sessionRef.current) {
-        console.log("[handleSendText] Path 1: Probing sessionRef.current...");
+        console.log("[handleSendText] Path 1: Probing sessionRef.current prototype...");
         const session = sessionRef.current as any;
         
-        // 🕵️ Debug: Log available methods to find the correct sender
-        const availableMethods = Object.keys(session).filter(k => typeof session[k] === 'function');
-        console.log("[handleSendText] Available session methods:", availableMethods);
+        // 🕵️ Deep Probe: Find METHODS on the object and its prototype
+        const allProperties = new Set<string>();
+        let currentObj = session;
+        while (currentObj && currentObj !== Object.prototype) {
+          Object.getOwnPropertyNames(currentObj).forEach(prop => allProperties.add(prop));
+          currentObj = Object.getPrototypeOf(currentObj);
+        }
+        
+        const availableMethods = Array.from(allProperties).filter(k => typeof session[k] === 'function');
+        console.log("[handleSendText] Deep Proved Methods:", availableMethods);
 
+        // 🚀 Multi-Method Try (封裝文字訊息格式)
         const textMessage = { parts: [{ text: currentInput }] };
+        const candidates = ['send', 'sendMessage', 'sendInput', 'sendContent'];
+        const foundMethod = candidates.find(m => typeof session[m] === 'function');
 
-        try {
-          if (typeof session.send === 'function') {
-            console.log("[handleSendText] Using session.send()");
-            session.send(textMessage);
+        if (foundMethod) {
+          try {
+            console.log(`[handleSendText] Success! Using session.${foundMethod}()`);
+            session[foundMethod](textMessage);
             setIsTranslatingText(false);
             return;
-          } else if (typeof session.sendMessage === 'function') {
-            console.log("[handleSendText] Using session.sendMessage()");
-            session.sendMessage(textMessage);
-            setIsTranslatingText(false);
-            return;
-          } else {
-            console.warn("[handleSendText] Path 1: No direct send method found. Falling back...");
+          } catch (sendErr: any) {
+            console.warn(`[handleSendText] Path 1 call failed to ${foundMethod}:`, sendErr.message);
           }
-        } catch (path1Err: any) {
-          console.warn("[handleSendText] Path 1 logic error:", path1Err.message);
+        } else {
+          console.warn("[handleSendText] Path 1: No valid send method found in prototype chain.");
         }
       }
 

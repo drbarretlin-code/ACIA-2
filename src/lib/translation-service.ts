@@ -21,7 +21,9 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
   // ✅ V4 Plan: Include the Voice model which we KNOW works for this key
   const models = [
     "gemini-3.1-flash-live-preview", // Voice Model
+    "gemini-2.0-flash-exp",          // Experimental (often higher quota)
     "gemini-2.0-flash",
+    "gemini-1.5-flash-latest",       // Alias
     "gemini-1.5-flash",
     "gemini-1.5-flash-8b",
     "gemini-1.5-pro-002"
