@@ -75,15 +75,8 @@ service cloud.firestore {
     function isValidRoom(data) {
       return hasRequiredFields(['creatorId', 'createdAt']) &&
              hasOnlyAllowedFields(['creatorId', 'createdAt', 'apiKey', 'apiKeyType', 'projectName', 'isSpeakingEnabled', 'isClosed', 'localLang', 'clientLang']) &&
-             data.creatorId is string && data.creatorId.size() > 0 && data.creatorId.size() < 100 &&
-             data.createdAt is timestamp &&
-             (!('apiKey' in data) || (data.apiKey is string && data.apiKey.size() < 200)) &&
-             (!('apiKeyType' in data) || (data.apiKeyType is string && data.apiKeyType.size() < 50)) &&
-             (!('projectName' in data) || (data.projectName is string && data.projectName.size() < 100)) &&
-             (!('isSpeakingEnabled' in data) || data.isSpeakingEnabled is bool) &&
-             (!('isClosed' in data) || data.isClosed is bool) &&
-             (!('localLang' in data) || (data.localLang is string && data.localLang.size() < 20)) &&
-             (!('clientLang' in data) || (data.clientLang is string && data.clientLang.size() < 20));
+             data.creatorId is string &&
+             data.createdAt is timestamp;
     }
 
     function isValidTranscript(data) {
@@ -100,9 +93,10 @@ service cloud.firestore {
     }
 
     function isValidConnection(data) {
-      return hasRequiredFields(['lastActive']) &&
-             hasOnlyAllowedFields(['lastActive', 'roomId']) &&
-             data.lastActive is timestamp &&
+      return hasRequiredFields(['lastSeen', 'status']) &&
+             hasOnlyAllowedFields(['lastSeen', 'status', 'roomId', 'lastActive']) &&
+             data.lastSeen is timestamp &&
+             data.status is string &&
              (!('roomId' in data) || (data.roomId is string && data.roomId.size() < 100));
     }
 
@@ -134,11 +128,10 @@ service cloud.firestore {
       );
     }
 
-    match /connections/{userId} {
+    match /connections/{connectionId} {
       allow read: if isAuthenticated();
-      allow create: if isOwner(userId) && isValidConnection(request.resource.data);
-      allow update: if isOwner(userId) && isValidConnection(request.resource.data);
-      allow delete: if isOwner(userId);
+      allow create, update: if isAuthenticated() && connectionId.startsWith(request.auth.uid) && isValidConnection(request.resource.data);
+      allow delete: if isAuthenticated() && connectionId.startsWith(request.auth.uid);
     }
 
     match /users/{userId}/history/{translationId} {

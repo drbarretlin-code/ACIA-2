@@ -249,7 +249,7 @@ export default function App() {
 
   const [isSpeakingEnabled, setIsSpeakingEnabled] = useState(false);
   const [localLang, setLocalLang] = useState(getDefaultLang);
-  const [clientLang, setClientLang] = useState('en-US');
+  const [clientLang, setClientLang] = useState(() => localStorage.getItem('client_lang') || 'en-US');
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
@@ -730,17 +730,20 @@ export default function App() {
 
     try {
       const newRoomId = Math.random().toString(36).substring(2, 9);
-      await setDoc(doc(db, 'rooms', newRoomId), {
+      // 確保所有寫入欄位皆有有效值，避免 undefined 導致權限或系統錯誤
+      const roomData = {
         creatorId: currentUser.uid,
         createdAt: serverTimestamp(),
-        apiKey: userApiKey,
-        apiKeyType: apiKeyType,
-        projectName: projectName,
-        localLang: localLang,
-        clientLang: clientLang,
+        apiKey: userApiKey || "",
+        apiKeyType: apiKeyType || "free",
+        projectName: projectName || "",
+        localLang: localLang || "zh-TW",
+        clientLang: clientLang || "en-US",
         isSpeakingEnabled: false,
         isClosed: false
-      });
+      };
+
+      await setDoc(doc(db, 'rooms', newRoomId), roomData);
       setRoomId(newRoomId);
       setShowRoomDialog(false);
       window.history.replaceState({}, '', `?room=${newRoomId}`);
@@ -1048,10 +1051,12 @@ export default function App() {
   const handleSendText = async () => {
     if (!inputText.trim() || !user) return;
 
-    const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
-    const targetId = translationDirection === 'localToClient' ? clientLang : localLang;
-    const sourceName = LANGUAGES.find(l => l.id === sourceId)?.name || sourceId;
-    const targetName = LANGUAGES.find(l => l.id === targetId)?.name || targetId;
+    // 確保使用當次對話最新的同步語系 ID
+    const sourceId = localLang || 'zh-TW';
+    const targetId = clientLang || 'en-US';
+    
+    console.log(`[Translation Sync] Sending text from ${sourceId} to ${targetId}`);
+
     const effectiveKey = userApiKey || roomApiKey;
 
     if (!effectiveKey) {
@@ -1062,6 +1067,10 @@ export default function App() {
     const currentInput = inputText;
     const msgId = Date.now().toString();
     
+    // 立即將原文加入列表，進入「轉錄中」狀態
+    const sourceName = LANGUAGES.find(l => l.id === sourceId)?.name || sourceId;
+    const targetName = LANGUAGES.find(l => l.id === targetId)?.name || targetId;
+
     // 立即將原文加入列表，進入「轉錄中」狀態
     setTranscripts(prev => [...prev, {
       id: msgId,
@@ -2404,22 +2413,25 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
               <div className="flex-1">
                 <div className="relative">
                   <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                  <select 
-                    value={localLang}
-                    onChange={(e) => setLocalLang(e.target.value)}
-                    disabled={isRecording}
-                    className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
-                  >
-                    {LANGUAGES.map(lang => {
-                      const countryCode = lang.id.split('-')[1];
-                      const flagEmoji = countryCode ? getFlagEmoji(countryCode) : '';
-                      return (
-                        <option key={`local-${lang.id}`} value={lang.id}>
-                          {flagEmoji} {getUiText(lang.nameKey)}
-                        </option>
-                      );
-                    })}
-                  </select>
+                  <div className="flex items-center gap-1">
+                    {!isRoomCreator && !!roomId && <Lock className="w-3 h-3 text-amber-500 mr-1" />}
+                    <select 
+                      value={localLang}
+                      onChange={(e) => setLocalLang(e.target.value)}
+                      disabled={isRecording || (!isRoomCreator && !!roomId)}
+                      className="w-full pl-2 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-80 appearance-none dark:text-slate-200"
+                    >
+                      {LANGUAGES.map(lang => {
+                        const countryCode = lang.id.split('-')[1];
+                        const flagEmoji = countryCode ? getFlagEmoji(countryCode) : '';
+                        return (
+                          <option key={`local-${lang.id}`} value={lang.id}>
+                            {flagEmoji} {getUiText(lang.nameKey)}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -2431,9 +2443,9 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     setLocalLang(clientLang);
                     setClientLang(temp);
                   }}
-                  disabled={isRecording}
+                  disabled={isRecording || (!isRoomCreator && !!roomId)}
                   className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="互換語系"
+                  title={!isRoomCreator && !!roomId ? "只有房長可以更換語系" : "互換語系"}
                 >
                   <ArrowRightLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                 </button>
@@ -2442,22 +2454,25 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
               <div className="flex-1">
                 <div className="relative">
                   <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                  <select 
-                    value={clientLang}
-                    onChange={(e) => setClientLang(e.target.value)}
-                    disabled={isRecording}
-                    className="w-full pl-8 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-60 appearance-none dark:text-slate-200"
-                  >
-                    {LANGUAGES.map(lang => {
-                      const countryCode = lang.id.split('-')[1];
-                      const flagEmoji = countryCode ? getFlagEmoji(countryCode) : '';
-                      return (
-                        <option key={`client-${lang.id}`} value={lang.id}>
-                          {flagEmoji} {getUiText(lang.nameKey)}
-                        </option>
-                      );
-                    })}
-                  </select>
+                  <div className="flex items-center gap-1">
+                    {!isRoomCreator && !!roomId && <Lock className="w-3 h-3 text-amber-500 mr-1" />}
+                    <select 
+                      value={clientLang}
+                      onChange={(e) => setClientLang(e.target.value)}
+                      disabled={isRecording || (!isRoomCreator && !!roomId)}
+                      className="w-full pl-2 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-80 appearance-none dark:text-slate-200"
+                    >
+                      {LANGUAGES.map(lang => {
+                        const countryCode = lang.id.split('-')[1];
+                        const flagEmoji = countryCode ? getFlagEmoji(countryCode) : '';
+                        return (
+                          <option key={`client-${lang.id}`} value={lang.id}>
+                            {flagEmoji} {getUiText(lang.nameKey)}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
                 </div>
               </div>
               
