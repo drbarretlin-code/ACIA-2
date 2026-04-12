@@ -1059,14 +1059,31 @@ export default function App() {
     try {
       // 1. 優先路徑：若錄音會話開啟，嘗試透過 WebSocket 發送文字（零配額消耗、極速）
       if (isLiveRef.current && sessionRef.current) {
-        console.log("[handleSendText] Checking sessionRef.current capability...");
-        if (typeof (sessionRef.current as any).send === 'function') {
-          console.log("[handleSendText] Path 1: Using Live Session");
-          (sessionRef.current as any).send({ parts: [{ text: currentInput }] });
-          setIsTranslatingText(false);
-          return;
-        } else {
-          console.warn("[handleSendText] Path 1 failed: session.send is missing. Falling back...");
+        console.log("[handleSendText] Path 1: Probing sessionRef.current...");
+        const session = sessionRef.current as any;
+        
+        // 🕵️ Debug: Log available methods to find the correct sender
+        const availableMethods = Object.keys(session).filter(k => typeof session[k] === 'function');
+        console.log("[handleSendText] Available session methods:", availableMethods);
+
+        const textMessage = { parts: [{ text: currentInput }] };
+
+        try {
+          if (typeof session.send === 'function') {
+            console.log("[handleSendText] Using session.send()");
+            session.send(textMessage);
+            setIsTranslatingText(false);
+            return;
+          } else if (typeof session.sendMessage === 'function') {
+            console.log("[handleSendText] Using session.sendMessage()");
+            session.sendMessage(textMessage);
+            setIsTranslatingText(false);
+            return;
+          } else {
+            console.warn("[handleSendText] Path 1: No direct send method found. Falling back...");
+          }
+        } catch (path1Err: any) {
+          console.warn("[handleSendText] Path 1 logic error:", path1Err.message);
         }
       }
 

@@ -1,4 +1,3 @@
-
 /**
  * Standard REST translation using direct fetch (no SDK dependency for better reliability)
  */
@@ -19,49 +18,56 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
     generationConfig: { temperature: 0.1 }
   };
 
+  // ✅ V4 Plan: Include the Voice model which we KNOW works for this key
   const models = [
+    "gemini-3.1-flash-live-preview", // Voice Model
+    "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-flash-8b",
-    "gemini-2.0-flash",
     "gemini-1.5-pro-002"
   ];
   
-  // Endpoints to try for each model
-  const versions = ["v1", "v1beta"];
+  // Versions and prefix combinations
+  const versions = ["v1beta", "v1"];
+  const prefixes = ["models/", ""]; 
   let lastError: any = null;
 
   for (const modelId of models) {
     for (const v of versions) {
-      try {
-        console.log(`[Path 3] Attempting ${v} / ${modelId}...`);
-        const url = `https://generativelanguage.googleapis.com/${v}/models/${modelId}:generateContent?key=${cleanApiKey}`;
-        
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+      for (const prefix of prefixes) {
+        try {
+          const fullModelId = `${prefix}${modelId}`;
+          console.log(`[Path 3] Attempting: ${v}/${fullModelId}...`);
+          const url = `https://generativelanguage.googleapis.com/${v}/${fullModelId}:generateContent?key=${cleanApiKey}`;
+          
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
 
-        const data = await response.json();
-        
-        if (response.ok) {
-          const result = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (result) {
-            console.log(`[Path 3] ✅ Success: ${v}/${modelId}`);
-            return result.trim();
+          const data = await response.json();
+          
+          if (response.ok) {
+            const result = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (result) {
+              console.log(`[Path 3] ✅ Success: ${v}/${fullModelId}`);
+              return result.trim();
+            }
+          } else {
+            lastError = new Error(data.error?.message || `HTTP ${response.status}`);
+            const msg = lastError.message.toLowerCase();
+            // If quota exhausted or "method not found", skip to next variant/model
+            if (msg.includes("429") || msg.includes("quota") || msg.includes("not found")) {
+               console.warn(`[Path 3] ⚠️ Skipping ${v}/${fullModelId}:`, msg);
+               break; 
+            }
+            console.warn(`[Path 3] ❌ ${v}/${fullModelId} failed:`, msg);
           }
-        } else {
-          lastError = new Error(data.error?.message || `HTTP ${response.status}`);
-          const msg = lastError.message.toLowerCase();
-          if (msg.includes("429") || msg.includes("quota")) {
-             console.warn(`[Path 3] ⚠️ ${modelId} quota exhausted.`);
-             break; // Skip other versions of this model if quota is out
-          }
-          console.warn(`[Path 3] ❌ ${v}/${modelId} failed:`, lastError.message);
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`[Path 3] Network error for ${modelId}:`, err.message);
         }
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`[Path 3] Unexpected error for ${modelId}:`, err.message);
       }
     }
   }
@@ -91,19 +97,21 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
   };
 
   const models = [
+    "gemini-3.1-flash-live-preview", // Voice Model
+    "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-flash-8b",
-    "gemini-2.0-flash",
     "gemini-1.5-pro-002"
   ];
   
   let lastError: any = null;
 
   for (const modelId of models) {
-    // For streaming, prioritize v1beta as it's more stable for SSE
+    // For streaming, prioritize v1beta
     const endpoints = [
       `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:streamGenerateContent?alt=sse&key=${cleanApiKey}`,
-      `https://generativelanguage.googleapis.com/v/models/${modelId}:streamGenerateContent?alt=sse&key=${cleanApiKey}`
+      `https://generativelanguage.googleapis.com/v1/models/${modelId}:streamGenerateContent?alt=sse&key=${cleanApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/${modelId}:streamGenerateContent?alt=sse&key=${cleanApiKey}`
     ];
 
     for (const url of endpoints) {
@@ -119,12 +127,13 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
           const errData = await response.json().catch(() => ({}));
           const errMsg = errData.error?.message || `HTTP ${response.status}`;
           lastError = new Error(errMsg);
+          const msg = errMsg.toLowerCase();
           
-          if (response.status === 404 || response.status === 400 || response.status === 429) {
-            console.warn(`[Path 2] Skipping ${modelId} (${response.status}):`, errMsg);
-            break; // Skip other endpoints for this model
+          if (response.status === 404 || response.status === 400 || response.status === 429 || msg.includes("not found")) {
+            console.warn(`[Path 2] Skipping endpoint for ${modelId}:`, errMsg);
+            continue; 
           }
-          continue;
+          throw lastError;
         }
 
         const reader = response.body?.getReader();
