@@ -6,9 +6,10 @@ import './index.css';
 console.log("main.tsx is executing!");
 
 class ErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error: Error | null}> {
+  state = { hasError: false, error: null };
+  
   constructor(props: {children: ReactNode}) {
     super(props);
-    this.state = { hasError: false, error: null };
   }
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
