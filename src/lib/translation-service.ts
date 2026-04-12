@@ -10,7 +10,7 @@ export async function translateText(
   if (!cleanApiKey) {
     throw new Error('API_KEY_MISSING');
   }
-
+  try {
     const genAI = new GoogleGenAI({ apiKey: cleanApiKey });
 
     const systemPrompt = `You are a professional translator. 
