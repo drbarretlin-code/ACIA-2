@@ -13,7 +13,6 @@ export async function translateText(
 
   try {
     const genAI = new GoogleGenAI({ apiKey: cleanApiKey });
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const systemPrompt = `You are a professional translator. 
 Translate the following text from ${sourceLang} to ${targetLang}. 
@@ -24,9 +23,12 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
 
     const combinedPrompt = `${systemPrompt}\n\nTEXT TO TRANSLATE:\n${text}`;
 
-    const result = await model.generateContent(combinedPrompt);
-    const response = await result.response;
-    return response.text().trim();
+    const result = await genAI.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: combinedPrompt
+    });
+    
+    return result.text?.trim() || '';
   } catch (error: any) {
     const errorMessage = error?.message || 'Unknown error';
     console.error('Translation error detail:', error);
