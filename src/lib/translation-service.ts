@@ -108,14 +108,14 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
     generationConfig: { temperature: 0.1 }
   };
 
-  // 廣泛嘗試多種模型以避免單一型號配額或版本不相容問題
+  // 備援模型清單：優先嘗試輕量、高配額模型
   const models = [
-    "gemini-2.0-flash", 
-    "gemini-1.5-flash-002", 
-    "gemini-1.5-flash", 
-    "gemini-2.0-flash-exp", 
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-flash-002",
     "gemini-1.5-pro-002",
-    "gemini-1.5-pro-latest"
+    "gemini-2.0-flash-exp"
   ];
   let lastError: any = null;
 
@@ -130,8 +130,25 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
       });
 
       if (!response.ok) {
+        const state = response.status;
         const errData = await response.json().catch(() => ({}));
-        const errMsg = errData.error?.message || `HTTP ${response.status}`;
+        const errMsg = errData.error?.message || `HTTP ${state}`;
+        const lowerMsg = errMsg.toLowerCase();
+
+        // 如果是 404 (找不到型號)、400 (不支援此方法) 或明顯的規格錯誤，直接跳下一個
+        const shouldSkip = state === 404 || state === 400 || 
+                           lowerMsg.includes("not found") || 
+                           lowerMsg.includes("not supported") || 
+                           lowerMsg.includes("invalid") ||
+                           lowerMsg.includes("429") || 
+                           lowerMsg.includes("quota") || 
+                           lowerMsg.includes("limit");
+
+        if (shouldSkip) {
+          console.warn(`[Stream] skipping model ${modelId} due to:`, errMsg);
+          continue;
+        }
+        
         throw new Error(errMsg);
       }
 
@@ -167,17 +184,9 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
       return fullText;
     } catch (err: any) {
       lastError = err;
-      const errorMsg = (err.message || "").toLowerCase();
-      console.warn(`[Stream] Model ${modelId} failed:`, errorMsg);
-      
-      // 偵測配額或是型號不支援/不被發現錯誤，嘗試下一個型號
-      const isQuotaError = errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("resource_exhausted") || errorMsg.includes("limit");
-      const isModelError = errorMsg.includes("404") || errorMsg.includes("not found") || errorMsg.includes("invalid") || errorMsg.includes("not supported");
-      
-      if (isQuotaError || isModelError) {
-        continue; 
-      }
-      break; // 其他致命錯誤（例如 API Key 錯誤）則中斷
+      // 如果不是透過上面的 continue 跳出的錯誤（可能是網路問題），也嘗試下一個
+      console.warn(`[Stream] Model ${modelId} unexpected error:`, err.message);
+      continue;
     }
   }
 
