@@ -323,16 +323,11 @@ export default function App() {
   const nextPlayTimeRef = useRef<number>(0);
   const sessionRef = useRef<any>(null);
   const isLiveRef = useRef<boolean>(false);
-  
-  const localLangRef = useRef<string>(localLang);
-  const clientLangRef = useRef<string>(clientLang);
   const transcriptsRef = useRef<Transcript[]>([]);
-  const isAudioOutputEnabledRef = useRef<boolean>(isAudioOutputEnabled);
-  const isNoiseShieldActiveRef = useRef<boolean>(isNoiseShieldActive);
-  
+
   useEffect(() => {
-    isNoiseShieldActiveRef.current = isNoiseShieldActive;
-  }, [isNoiseShieldActive]);
+    transcriptsRef.current = transcripts;
+  }, [transcripts]);
 
   // 讀取與更新費用統計
   const updateApiUsage = (type: 'request' | 'tokens', count: number = 1) => {
