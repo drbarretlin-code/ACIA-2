@@ -1057,32 +1057,47 @@ export default function App() {
     setIsTranslatingText(true);
 
     try {
-      // 1. 優先路徑：若錄音正在進行，優先嘗試 WebSocket 發送（零配額消耗）
+      // 1. 優先保險路徑 (零配額限制)：Google 免費線上翻譯接口 (設計模式與 Google Translate 一致)
+      try {
+        console.log("[handleSendText] Path 4: Using Free Google Translate (Primary)");
+        const freeResult = await translateTextFree(
+          currentInput,
+          sourceName,
+          targetName
+        );
+
+        setTranscripts(prev => prev.map(t => 
+          t.id === msgId ? { ...t, translated: freeResult, isTranslating: false } : t
+        ));
+        setIsTranslatingText(false);
+        return;
+      } catch (freeErr: any) {
+        console.warn("[handleSendText] Path 4 failed. Falling back to Path 1 (Live Session)...", freeErr.message);
+      }
+
+      // 2. 二級路徑：若綠音正在進行，嘗試透過 WebSocket 發送（零配額消耗）
       if (isRecording && sessionRef.current) {
         const session = sessionRef.current as any;
-        
-        // 🚀 Multi-Method Try (已識別出正確方法：sendClientContent)
         const textMessage = { parts: [{ text: currentInput }] };
         const candidates = ['send', 'sendClientContent', 'sendMessage', 'sendInput', 'sendContent'];
         const foundMethod = candidates.find(m => typeof session[m] === 'function');
 
         if (foundMethod) {
           try {
-            console.log(`[handleSendText] Success! Using session.${foundMethod}()`);
+            console.log(`[handleSendText] Path 1: Using session.${foundMethod}() backup`);
             session[foundMethod](textMessage);
-            setIsTranslatingText(false);
-            return;
+            // 注意：Path 1 是非同步回傳，UI 可能稍後由 Socket 事件觸發
+            // 但為了解決「文字不出現」問題，我們維持「正在翻譯」狀態
+            // 或者這裡暫時不做 Return，讓之後的路徑給出一個確定性結果
           } catch (sendErr: any) {
-            console.warn(`[handleSendText] Path 1 call failed to ${foundMethod}:`, sendErr.message);
+            console.warn(`[handleSendText] Path 1 failed to ${foundMethod}:`, sendErr.message);
           }
-        } else {
-          console.warn("[handleSendText] Path 1: No valid send method found. Falling back to Path 2...");
         }
       }
 
-      // 2. 二級路徑：錄音未開啟或 WebSocket 不支援時，使用 REST Streaming
+      // 3. 三級路徑：使用 REST Streaming (Gemini)
       try {
-        console.log("[handleSendText] Path 2: Using Streaming REST");
+        console.log("[handleSendText] Path 2: Using Streaming REST Fallback");
         await translateTextStream(
           currentInput, 
           sourceName, 
@@ -1101,38 +1116,20 @@ export default function App() {
         setIsTranslatingText(false);
         return;
       } catch (streamErr: any) {
-        console.warn("[handleSendText] Path 2 failed. Falling back to Path 3 (Standard SDK)...", streamErr.message);
+        console.warn("[handleSendText] Path 2 failed. Falling back to Path 3 (Standard REST)...", streamErr.message);
       }
 
-      // 3. 三級路徑：若串流也失敗，使用標準 REST
-      try {
-        console.log("[handleSendText] Path 3: Using Standard REST Endpoint");
-        const finalResult = await translateText(
-          currentInput,
-          sourceName,
-          targetName,
-          effectiveKey
-        );
-
-        setTranscripts(prev => prev.map(t => 
-          t.id === msgId ? { ...t, translated: finalResult, isTranslating: false } : t
-        ));
-        setIsTranslatingText(false);
-        return;
-      } catch (sdkErr: any) {
-        console.warn("[handleSendText] Path 3 failed. Falling back to Path 4 (Free Google Translate)...", sdkErr.message);
-      }
-
-      // 4. 終極保險路徑 (零配額制限)：Google 免費線上翻譯接口
-      console.log("[handleSendText] Path 4: Using Free Google Translate");
-      const freeResult = await translateTextFree(
+      // 4. 終極保險路徑：標準 REST
+      console.log("[handleSendText] Path 3: Using Standard REST Endpoint");
+      const finalResult = await translateText(
         currentInput,
         sourceName,
-        targetName
+        targetName,
+        effectiveKey
       );
 
       setTranscripts(prev => prev.map(t => 
-        t.id === msgId ? { ...t, translated: freeResult, isTranslating: false } : t
+        t.id === msgId ? { ...t, translated: finalResult, isTranslating: false } : t
       ));
 
     } catch (err: any) {
