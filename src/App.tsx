@@ -1028,11 +1028,12 @@ export default function App() {
         const result = await translateText(inputText, sourceName, targetName, effectiveKey);
         setTranslatedPreview(result);
       } catch (err: any) {
-        console.error(err);
+        console.error("Preview translate error:", err);
         if (err.message === 'API_KEY_MISSING') {
           setTranslatedPreview("⚠️ API Key 設定錯誤");
         } else {
-          setTranslatedPreview("⚠️ 翻譯發生錯誤");
+          const detail = err.message?.replace('TRANSLATION_FAILED: ', '') || '未知錯誤';
+          setTranslatedPreview(`⚠️ 翻譯失敗: ${detail}`);
         }
       } finally {
         setIsTranslatingText(false);
@@ -1069,7 +1070,8 @@ export default function App() {
         if (err.message === 'API_KEY_MISSING') {
           toast.error("API Key 缺失，請在設定中確認。");
         } else {
-          toast.error("翻譯失敗，請檢查 API Key 或網路連線");
+          const detail = err.message?.replace('TRANSLATION_FAILED: ', '') || '未知錯誤';
+          toast.error(`翻譯失敗: ${detail}`);
         }
         setIsTranslatingText(false);
         return;
