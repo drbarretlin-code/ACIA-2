@@ -13,12 +13,14 @@ export async function translateText(
   try {
     const genAI = new GoogleGenAI({ apiKey: cleanApiKey });
 
-    // 🕵️ Discovery Step: Attempt to list models to help identify the correct ID
+    // 🕵️ HARD DISCOVERY: Try to find EVERY available model name
     try {
+      console.log("[Debug] Attempting to list all models for this key...");
       const modelsList: any = await genAI.models.list();
-      console.log("[Debug] Available Model IDs for this API Key:", modelsList.models?.map((m: any) => m.name));
-    } catch (discoveryErr) {
-      console.warn("[Debug] Model discovery failed (this is expected for some keys):", discoveryErr);
+      const modelNames = modelsList.models?.map((m: any) => m.name.replace('models/', '')) || [];
+      console.log("[Debug] SUCCESS! Available Model IDs:", modelNames);
+    } catch (discoveryErr: any) {
+      console.warn("[Debug] Model discovery failed. Error:", discoveryErr?.message || discoveryErr);
     }
 
     const systemPrompt = `You are a professional translator. 
@@ -30,41 +32,49 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
 
     const combinedPrompt = `${systemPrompt}\n\nTEXT TO TRANSLATE:\n${text}`;
 
-    // 🚀 Comprehensive fallback chain to find a valid & non-exhausted model
+    // 🚀 FINAL Fallback List (Aggressively Specific)
     const modelsToTry = [
-      "gemini-2.0-flash",           // Modern standard
-      "gemini-2.5-flash",           // Project script reference
-      "gemini-2.0-flash-exp",       // Experimental (high availability)
-      "gemini-1.5-flash-latest",    // Pointer to latest
+      "gemini-2.0-flash",           // Confirmed found in prev runs (but 429)
+      "gemini-1.5-flash-002",       // New stable id
+      "gemini-1.5-flash-001",       // Old stable id
+      "gemini-2.0-flash-exp",       // Experimental id
+      "gemini-1.5-flash-latest",    // Pointer
       "gemini-1.5-flash",           // Standard (previously 404'd)
-      "gemini-1.5-flash-001",       // Specific version 1
-      "gemini-1.5-flash-002",       // Specific version 2
-      "gemini-1.5-flash-8b",        // 8B version (higher limits)
-      "gemini-1.5-flash-8b-latest", // 8B latest
-      "gemini-3.1-flash-live-preview" // Matching App.tsx reference
+      "gemini-1.5-pro-002",         // Pro version
+      "gemini-2.5-flash",           // Reference from project files
+      "gemini-3.1-flash-live-preview" // Matching App.tsx
     ];
     let lastError: any = null;
+    let quotaExhaustedModel = null;
 
     for (const modelId of modelsToTry) {
       try {
-        console.log(`[Translation] Checking model: ${modelId}`);
+        console.log(`[Translation] Attempting model: ${modelId}`);
         const result = await genAI.models.generateContent({
           model: modelId,
           contents: [{ role: 'user', parts: [{ text: combinedPrompt }] }]
         });
         
-        if (result.content || result.text) {
-          console.log(`[Translation] Success with model: ${modelId}`);
-          return result.text?.trim() || '';
+        if (result.text) {
+          console.log(`[Translation] ✅ Success with model: ${modelId}`);
+          return result.text.trim();
         }
       } catch (error: any) {
         lastError = error;
-        // Only log warning to keep console relatively clean
-        console.warn(`[Translation] Model ${modelId} failed:`, error.message || error);
+        const msg = error.message || "";
         
-        // If it's a 429, we definitely want to try the next model
-        // If it's a 404, the name is likely wrong, so try next
+        if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
+          quotaExhaustedModel = modelId;
+          console.warn(`[Translation] ⚠️ Model ${modelId} has NO QUOTA (429).`);
+        } else {
+          console.warn(`[Translation] ❌ Model ${modelId} rejected:`, msg);
+        }
       }
+    }
+
+    // Special handling for user feedback
+    if (quotaExhaustedModel) {
+      throw new Error(`QUOTA_EXHAUSTED: 模型 ${quotaExhaustedModel} 本次配額已滿，請稍後再試。`);
     }
     
     // If we reached here, all models failed

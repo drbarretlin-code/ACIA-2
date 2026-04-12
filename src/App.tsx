@@ -258,6 +258,7 @@ export default function App() {
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || 'en-US');
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_completed'));
   const virtuosoRef = useRef<any>(null);
@@ -495,6 +496,18 @@ export default function App() {
               ...(userName ? { speakerName: userName } : {})
             }, { merge: true });
             console.log('Transcript saved to Firestore successfully');
+            
+            // 智能置底捲動：僅在使用者處於底部或發送者是自己時自動捲動
+            setTimeout(() => {
+              const isLocalUser = lastTranscript.speakerId === user.uid;
+              if (isAtBottom || isLocalUser) {
+                virtuosoRef.current?.scrollToIndex({
+                  index: transcripts.length - 1,
+                  behavior: 'smooth',
+                  align: 'end'
+                });
+              }
+            }, 150);
           } catch (e) {
             console.error("Failed to save transcript to Firestore", e);
           }
@@ -2546,12 +2559,16 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 style={{ height: '100%' }}
                 data={memoizedTranscripts}
                 itemContent={(index, t) => (
-                  <div className="mb-2">
+                  <div className="mb-4">
                     <TranscriptItem key={t.id} t={t} />
                   </div>
                 )}
                 followOutput="smooth"
-                initialTopMostItemIndex={memoizedTranscripts.length - 1}
+                alignToBottom
+                increaseViewportBy={300}
+                atBottomThreshold={60}
+                atBottomStateChange={setIsAtBottom}
+                initialTopMostItemIndex={memoizedTranscripts.length > 0 ? memoizedTranscripts.length - 1 : 0}
               />
             )}
           </div>
