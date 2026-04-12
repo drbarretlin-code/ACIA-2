@@ -1057,17 +1057,23 @@ export default function App() {
     setIsTranslatingText(true);
 
     try {
-      // 優先路徑：若錄音會話開啟，直接透過 WebSocket 發送文字（零配額消耗、極速）
+      // 優先路徑：若錄音會話開啟，嘗試透過 WebSocket 發送文字（零配額消耗、極速）
       if (isLiveRef.current && sessionRef.current) {
-        console.log("[handleSendText] Using Live Session for instant translation");
-        sessionRef.current.send({ parts: [{ text: currentInput }] });
+        console.log("[handleSendText] Checking sessionRef.current capability...");
         
-        // 此時由 Live Session 的 onmessage 回傳翻譯，handleSendText 任務完成
-        setIsTranslatingText(false);
-        return;
+        // 偵查 session 對象的所有屬性以協助診錯
+        if (typeof (sessionRef.current as any).send === 'function') {
+          console.log("[handleSendText] Using Live Session for instant translation");
+          (sessionRef.current as any).send({ parts: [{ text: currentInput }] });
+          setIsTranslatingText(false);
+          return;
+        } else {
+          console.warn("[handleSendText] sessionRef.current.send is not a function. Available keys:", Object.keys(sessionRef.current));
+          // 繼續執行下方的 REST 備援路徑
+        }
       }
 
-      // 備援路徑：錄音未開啟時，使用優化後的 Streaming REST 轉譯
+      // 備援路徑：錄音未開啟或 WebSocket 不支援 send 時，使用優化後的 Streaming REST 轉譯
       await translateTextStream(
         currentInput, 
         sourceName, 
