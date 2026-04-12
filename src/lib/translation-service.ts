@@ -172,3 +172,52 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
 
   throw new Error(`TRANSLATION_FAILED: ${lastError?.message || "All streaming paths failed"}`);
 }
+
+/**
+ * Path 4: FREE Google Translate Public Endpoint (No Quotas, No Key)
+ */
+export async function translateTextFree(
+  text: string,
+  sourceLang: string,
+  targetLang: string
+): Promise<string> {
+  // Mapping UI language names to Google Translate codes
+  const langMap: Record<string, string> = {
+    'Traditional Chinese': 'zh-TW',
+    '繁體中文': 'zh-TW',
+    'Simplified Chinese': 'zh-CN',
+    '简体中文': 'zh-CN',
+    'English (US)': 'en',
+    'English (UK)': 'en',
+    'Japanese': 'ja',
+    '日本語': 'ja',
+    'Korean': 'ko',
+    '한국어': 'ko',
+    'French': 'fr',
+    'Spanish': 'es',
+    'German': 'de'
+  };
+
+  const sl = langMap[sourceLang] || 'auto';
+  const tl = langMap[targetLang] || 'en';
+
+  try {
+    console.log("[Path 4] Using Free Google Translate (" + sl + " -> " + tl + ")...");
+    const url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=" + sl + "&tl=" + tl + "&dt=t&q=" + encodeURIComponent(text);
+    
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("HTTP " + response.status);
+
+    const data = await response.json();
+    const result = data[0]?.map((part: any) => part[0]).join('') || "";
+    
+    if (result) {
+      console.log("[Path 4] ✅ Success via Free Endpoint");
+      return result;
+    }
+  } catch (err: any) {
+    console.error("[Path 4] Free Translate failed:", err.message);
+    throw err;
+  }
+  throw new Error("Free translation returned no result");
+}

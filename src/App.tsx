@@ -12,7 +12,7 @@ import { collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, updateD
 import { onAuthStateChanged, User } from 'firebase/auth';
 import toast, { Toaster } from 'react-hot-toast';
 import { translations } from './translations';
-import { translateText, translateTextStream } from './lib/translation-service';
+import { translateText, translateTextStream, translateTextFree } from './lib/translation-service';
 
 // 獨立的 TranscriptItem 元件，使用 React.memo 優化渲染
 const TranscriptItem = React.memo(({ t }: { t: any }) => (
@@ -1057,8 +1057,8 @@ export default function App() {
     setIsTranslatingText(true);
 
     try {
-      // 1. 優先路徑：若錄音會話開啟，嘗試透過 WebSocket 發送文字（零配額消耗、極速）
-      if (isLiveRef.current && sessionRef.current) {
+      // 1. 優先路徑：若錄音正在進行，優先嘗試 WebSocket 發送（零配額消耗）
+      if (isRecording && sessionRef.current) {
         console.log("[handleSendText] Path 1: Probing sessionRef.current prototype...");
         const session = sessionRef.current as any;
         
@@ -1073,7 +1073,7 @@ export default function App() {
         const availableMethods = Array.from(allProperties).filter(k => typeof session[k] === 'function');
         console.log("[handleSendText] Deep Proved Methods:", availableMethods);
 
-        // 🚀 Multi-Method Try (封裝文字訊息格式)
+        // 🚀 Multi-Method Try
         const textMessage = { parts: [{ text: currentInput }] };
         const candidates = ['send', 'sendMessage', 'sendInput', 'sendContent'];
         const foundMethod = candidates.find(m => typeof session[m] === 'function');
@@ -1116,17 +1116,35 @@ export default function App() {
         console.warn("[handleSendText] Path 2 failed. Falling back to Path 3 (Standard SDK)...", streamErr.message);
       }
 
-      // 3. 終極路徑：若串流也失敗（如配額 429 或型號 404），使用標準 SDK generateContent
-      console.log("[handleSendText] Path 3: Using Standard SDK generateContent (Final Fallback)");
-      const finalResult = await translateText(
+      // 3. 三級路徑：若串流也失敗，使用標準 REST
+      try {
+        console.log("[handleSendText] Path 3: Using Standard REST Endpoint");
+        const finalResult = await translateText(
+          currentInput,
+          sourceName,
+          targetName,
+          effectiveKey
+        );
+
+        setTranscripts(prev => prev.map(t => 
+          t.id === msgId ? { ...t, translated: finalResult, isTranslating: false } : t
+        ));
+        setIsTranslatingText(false);
+        return;
+      } catch (sdkErr: any) {
+        console.warn("[handleSendText] Path 3 failed. Falling back to Path 4 (Free Google Translate)...", sdkErr.message);
+      }
+
+      // 4. 終極保險路徑 (零配額制限)：Google 免費線上翻譯接口
+      console.log("[handleSendText] Path 4: Using Free Google Translate");
+      const freeResult = await translateTextFree(
         currentInput,
         sourceName,
-        targetName,
-        effectiveKey
+        targetName
       );
 
       setTranscripts(prev => prev.map(t => 
-        t.id === msgId ? { ...t, translated: finalResult, isTranslating: false } : t
+        t.id === msgId ? { ...t, translated: freeResult, isTranslating: false } : t
       ));
 
     } catch (err: any) {
