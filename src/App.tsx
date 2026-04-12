@@ -2200,7 +2200,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">{getUiText('headerTitle2Setting')} (預設: AI Smart Interpreter)</label>
+                      <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">{getUiText('headerTitle2Setting')} (預設: Equipment Department)</label>
                       <input
                         type="text"
                         value={headerTitle2}

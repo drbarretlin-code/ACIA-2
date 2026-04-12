@@ -5,7 +5,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const baseDict = {
   'title1': 'TUC',
-  'title2': 'AI Smart Interpreter',
+  'title2': 'Equipment Department',
   'local': 'Local',
   'client': 'Client',
   'systemReady': 'System Ready',

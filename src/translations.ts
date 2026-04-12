@@ -159,7 +159,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "vi-VN": {
     "title1": "TUC",
-    "title2": "Phiên dịch thông minh AI",
+    "title2": "Equipment Department",
     "local": "Nội bộ",
     "client": "Khách hàng",
     "systemReady": "Hệ thống sẵn sàng",
@@ -238,7 +238,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "bn-BD": {
     "title1": "টিইউসি",
-    "title2": "এআই স্মার্ট ইন্টারপ্রেটার",
+    "title2": "Equipment Department",
     "local": "স্থানীয়",
     "client": "ক্লায়েন্ট",
     "systemReady": "সিস্টেম প্রস্তুত",
@@ -317,7 +317,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "tr-TR": {
     "title1": "TUC",
-    "title2": "Yapay Zeka Akıllı Tercüman",
+    "title2": "Equipment Department",
     "local": "Yerel",
     "client": "Müşteri",
     "systemReady": "Sistem Hazır",
@@ -396,7 +396,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "ja-JP": {
     "title1": "TUC",
-    "title2": "AIスマート通訳",
+    "title2": "Equipment Department",
     "local": "ローカル",
     "client": "クライアント",
     "systemReady": "システム準備完了",
@@ -475,7 +475,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "ms-MY": {
     "title1": "TUC",
-    "title2": "Penterjemah Pintar AI",
+    "title2": "Equipment Department",
     "local": "Tempatan",
     "client": "Klien",
     "systemReady": "Sistem Sedia",
@@ -554,7 +554,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "sk-SK": {
     "title1": "TUC",
-    "title2": "Inteligentný AI tlmočník",
+    "title2": "Equipment Department",
     "local": "Lokálne",
     "client": "Klient",
     "systemReady": "Systém pripravený",
@@ -633,7 +633,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "es-ES": {
     "title1": "TUC",
-    "title2": "Intérprete Inteligente de IA",
+    "title2": "Equipment Department",
     "local": "Local",
     "client": "Cliente",
     "systemReady": "Sistema Listo",
@@ -712,7 +712,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "hu-HU": {
     "title1": "TUC",
-    "title2": "AI Intelligens Tolmács",
+    "title2": "Equipment Department",
     "local": "Helyi",
     "client": "Kliens",
     "systemReady": "Rendszer Kész",
@@ -791,7 +791,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "zh-CN": {
     "title1": "TUC",
-    "title2": "AI智能翻译器",
+    "title2": "设备部门",
     "local": "本地",
     "client": "客户端",
     "systemReady": "系统就绪",
@@ -870,7 +870,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "ko-KR": {
     "title1": "TUC",
-    "title2": "AI 스마트 통역사",
+    "title2": "Equipment Department",
     "local": "로컬",
     "client": "클라이언트",
     "systemReady": "시스템 준비 완료",
@@ -949,7 +949,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "zh-TW": {
     "title1": "TUC",
-    "title2": "AI 智慧口譯機",
+    "title2": "設備部門",
     "local": "本機",
     "client": "客戶端",
     "systemReady": "系統就緒",
@@ -1028,7 +1028,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "de-DE": {
     "title1": "TUC",
-    "title2": "KI Smart Dolmetscher",
+    "title2": "Equipment Department",
     "local": "Lokal",
     "client": "Client",
     "systemReady": "System bereit",
@@ -1107,7 +1107,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "id-ID": {
     "title1": "TUC",
-    "title2": "Penerjemah Cerdas AI",
+    "title2": "Equipment Department",
     "local": "Lokal",
     "client": "Klien",
     "systemReady": "Sistem Siap",
@@ -1186,7 +1186,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "sv-SE": {
     "title1": "TUC",
-    "title2": "AI Smart Tolk",
+    "title2": "Equipment Department",
     "local": "Lokal",
     "client": "Klient",
     "systemReady": "System redo",
@@ -1265,7 +1265,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "hi-IN": {
     "title1": "TUC",
-    "title2": "एआई स्मार्ट इंटरप्रेटर",
+    "title2": "Equipment Department",
     "local": "स्थानीय",
     "client": "ग्राहक",
     "systemReady": "सिस्टम तैयार",
@@ -1344,7 +1344,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "nl-NL": {
     "title1": "TUC",
-    "title2": "AI Slimme Tolk",
+    "title2": "Equipment Department",
     "local": "Lokaal",
     "client": "Cliënt",
     "systemReady": "Systeem Klaar",
@@ -1423,7 +1423,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "pt-BR": {
     "title1": "TUC",
-    "title2": "Intérprete Inteligente de IA",
+    "title2": "Equipment Department",
     "local": "Local",
     "client": "Cliente",
     "systemReady": "Sistema Pronto",
@@ -1502,7 +1502,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "no-NO": {
     "title1": "TUC",
-    "title2": "AI Smart Tolk",
+    "title2": "Equipment Department",
     "local": "Lokal",
     "client": "Klient",
     "systemReady": "System klart",
@@ -1581,7 +1581,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "he-IL": {
     "title1": "TUC",
-    "title2": "מתורגמן חכם AI",
+    "title2": "Equipment Department",
     "local": "מקומי",
     "client": "לקוח",
     "systemReady": "המערכת מוכנה",
@@ -1660,7 +1660,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "pt-PT": {
     "title1": "TUC",
-    "title2": "Intérprete Inteligente de IA",
+    "title2": "Equipment Department",
     "local": "Local",
     "client": "Cliente",
     "systemReady": "Sistema Pronto",
@@ -1739,7 +1739,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "it-IT": {
     "title1": "TUC",
-    "title2": "Interprete Intelligente AI",
+    "title2": "Equipment Department",
     "local": "Locale",
     "client": "Cliente",
     "systemReady": "Sistema Pronto",
@@ -1818,7 +1818,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "ru-RU": {
     "title1": "TUC",
-    "title2": "Умный ИИ-переводчик",
+    "title2": "Equipment Department",
     "local": "Локальный",
     "client": "Клиент",
     "systemReady": "Система готова",
@@ -1897,7 +1897,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "uk-UA": {
     "title1": "TUC",
-    "title2": "Розумний перекладач зі штучним інтелектом",
+    "title2": "Equipment Department",
     "local": "Локальний",
     "client": "Клієнт",
     "systemReady": "Система готова",
@@ -1976,7 +1976,7 @@ export const translations: Record<string, Record<string, string>> = {
   },
   "th-TH": {
     "title1": "TUC",
-    "title2": "ล่าม AI อัจฉริยะ",
+    "title2": "Equipment Department",
     "local": "ภายในเครื่อง",
     "client": "ไคลเอนต์",
     "systemReady": "ระบบพร้อมใช้งาน",
