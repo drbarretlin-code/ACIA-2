@@ -34,50 +34,46 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
 
     // 🚀 FINAL Fallback List (Aggressively Specific)
     const modelsToTry = [
-      "gemini-2.0-flash",           // Confirmed found in prev runs (but 429)
-      "gemini-1.5-flash-002",       // New stable id
-      "gemini-1.5-flash-001",       // Old stable id
-      "gemini-2.0-flash-exp",       // Experimental id
-      "gemini-1.5-flash-latest",    // Pointer
-      "gemini-1.5-flash",           // Standard (previously 404'd)
-      "gemini-1.5-pro-002",         // Pro version
-      "gemini-2.5-flash",           // Reference from project files
-      "gemini-3.1-flash-live-preview" // Matching App.tsx
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
+      "gemini-2.0-flash",
+      "gemini-1.5-pro-002",
+      "gemini-1.5-pro",
+      "gemini-2.0-flash-exp"
     ];
     let lastError: any = null;
-    let quotaExhaustedModel = null;
+    let quotaExhaustedCount = 0;
 
     for (const modelId of modelsToTry) {
       try {
-        console.log(`[Translation] Attempting model: ${modelId}`);
-        const result = await genAI.models.generateContent({
-          model: modelId,
-          contents: [{ role: 'user', parts: [{ text: combinedPrompt }] }]
-        });
+        console.log(`[Path 3] Attempting model: ${modelId}`);
+        const model = genAI.getGenerativeModel({ model: modelId });
+        const result = await model.generateContent(combinedPrompt);
+        const translated = result.response.text();
         
-        if (result.text) {
-          console.log(`[Translation] ✅ Success with model: ${modelId}`);
-          return result.text.trim();
+        if (translated) {
+          console.log(`[Path 3] ✅ Success with model: ${modelId}`);
+          return translated.trim();
         }
       } catch (error: any) {
         lastError = error;
-        const msg = error.message || "";
+        const msg = (error.message || "").toLowerCase();
         
-        if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
-          quotaExhaustedModel = modelId;
-          console.warn(`[Translation] ⚠️ Model ${modelId} has NO QUOTA (429).`);
+        if (msg.includes("429") || msg.includes("quota") || msg.includes("exhausted")) {
+          quotaExhaustedCount++;
+          console.warn(`[Path 3] ⚠️ Model ${modelId} quota exhausted.`);
+        } else if (msg.includes("404") || msg.includes("not found") || msg.includes("not supported")) {
+          console.warn(`[Path 3] ❌ Model ${modelId} not found/supported, skipping...`);
         } else {
-          console.warn(`[Translation] ❌ Model ${modelId} rejected:`, msg);
+          console.warn(`[Path 3] ❌ Model ${modelId} error:`, msg);
         }
       }
     }
 
-    // Special handling for user feedback
-    if (quotaExhaustedModel) {
-      throw new Error(`QUOTA_EXHAUSTED: 模型 ${quotaExhaustedModel} 本次配額已滿，請稍後再試。`);
+    if (quotaExhaustedCount === modelsToTry.length) {
+      throw new Error(`QUOTA_EXHAUSTED: 所有模型的免費配額皆已用盡，請稍後再試。`);
     }
     
-    // If we reached here, all models failed
     const errorMessage = lastError?.message || 'All models in fallback chain failed';
     throw new Error(`TRANSLATION_FAILED: ${errorMessage}`);
   } catch (error: any) {
@@ -187,8 +183,5 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
   }
 
   const finalMsg = lastError?.message || "All models failed";
-  if (finalMsg.toLowerCase().includes("quota") || finalMsg.includes("429")) {
-    throw new Error("TRANSLATION_FAILED: API 配額已滿，請稍待 30 秒或開啟錄音功能以節省配額。");
-  }
   throw new Error(`TRANSLATION_FAILED: ${finalMsg}`);
 }

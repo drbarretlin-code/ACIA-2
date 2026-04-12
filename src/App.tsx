@@ -1057,48 +1057,63 @@ export default function App() {
     setIsTranslatingText(true);
 
     try {
-      // 優先路徑：若錄音會話開啟，嘗試透過 WebSocket 發送文字（零配額消耗、極速）
+      // 1. 優先路徑：若錄音會話開啟，嘗試透過 WebSocket 發送文字（零配額消耗、極速）
       if (isLiveRef.current && sessionRef.current) {
         console.log("[handleSendText] Checking sessionRef.current capability...");
-        
-        // 偵查 session 對象的所有屬性以協助診錯
         if (typeof (sessionRef.current as any).send === 'function') {
-          console.log("[handleSendText] Using Live Session for instant translation");
+          console.log("[handleSendText] Path 1: Using Live Session");
           (sessionRef.current as any).send({ parts: [{ text: currentInput }] });
           setIsTranslatingText(false);
           return;
         } else {
-          console.warn("[handleSendText] sessionRef.current.send is not a function. Available keys:", Object.keys(sessionRef.current));
-          // 繼續執行下方的 REST 備援路徑
+          console.warn("[handleSendText] Path 1 failed: session.send is missing. Falling back...");
         }
       }
 
-      // 備援路徑：錄音未開啟或 WebSocket 不支援 send 時，使用優化後的 Streaming REST 轉譯
-      await translateTextStream(
-        currentInput, 
-        sourceName, 
-        targetName, 
-        effectiveKey,
-        (chunk) => {
-          // 逐字更新列表中的轉錄結果
-          setTranscripts(prev => prev.map(t => 
-            t.id === msgId ? { ...t, translated: (t.translated || "") + chunk } : t
-          ));
-        }
+      // 2. 二級路徑：錄音未開啟或 WebSocket 不支援時，使用 REST Streaming
+      try {
+        console.log("[handleSendText] Path 2: Using Streaming REST");
+        await translateTextStream(
+          currentInput, 
+          sourceName, 
+          targetName, 
+          effectiveKey,
+          (chunk) => {
+            setTranscripts(prev => prev.map(t => 
+              t.id === msgId ? { ...t, translated: (t.translated || "") + chunk } : t
+            ));
+          }
+        );
+        
+        setTranscripts(prev => prev.map(t => 
+          t.id === msgId ? { ...t, isTranslating: false } : t
+        ));
+        setIsTranslatingText(false);
+        return;
+      } catch (streamErr: any) {
+        console.warn("[handleSendText] Path 2 failed. Falling back to Path 3 (Standard SDK)...", streamErr.message);
+      }
+
+      // 3. 終極路徑：若串流也失敗（如配額 429 或型號 404），使用標準 SDK generateContent
+      console.log("[handleSendText] Path 3: Using Standard SDK generateContent (Final Fallback)");
+      const finalResult = await translateText(
+        currentInput,
+        sourceName,
+        targetName,
+        effectiveKey
       );
-      
-      // 完成後標記為非轉譯中
+
       setTranscripts(prev => prev.map(t => 
-        t.id === msgId ? { ...t, isTranslating: false } : t
+        t.id === msgId ? { ...t, translated: finalResult, isTranslating: false } : t
       ));
 
     } catch (err: any) {
-      console.error("Manual stream translate error:", err);
-      const detail = err.message?.replace('TRANSLATION_FAILED: ', '') || '未知錯誤';
+      console.error("Triple-Path translation failed:", err);
+      const detail = err.message?.replace('TRANSLATION_FAILED: ', '') || '服務暫時不可用';
       toast.error(`轉譯失敗: ${detail}`);
       
       setTranscripts(prev => prev.map(t => 
-        t.id === msgId ? { ...t, isTranslating: false, translated: "⚠️ 轉譯失敗" } : t
+        t.id === msgId ? { ...t, isTranslating: false, translated: "⚠️ 轉譯失敗 (配額或連線問題)" } : t
       ));
     } finally {
       setIsTranslatingText(false);
