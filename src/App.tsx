@@ -12,7 +12,7 @@ import { collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, updateD
 import { onAuthStateChanged, User } from 'firebase/auth';
 import toast, { Toaster } from 'react-hot-toast';
 import { translations } from './translations';
-import { translateText } from './lib/translation-service';
+import { translateText, translateTextStream } from './lib/translation-service';
 
 // 獨立的 TranscriptItem 元件，使用 React.memo 優化渲染
 const TranscriptItem = React.memo(({ t }: { t: any }) => (
