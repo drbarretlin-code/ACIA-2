@@ -298,6 +298,17 @@ export default function App() {
     return localStorage.getItem('audio_output') !== 'false';
   });
   const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'None');
+
+  // Refs for stable access in async handlers (Socket/Gemini)
+  const localLangRef = useRef(localLang);
+  const clientLangRef = useRef(clientLang);
+  const isNoiseShieldActiveRef = useRef(isNoiseShieldActive);
+  const isAudioOutputEnabledRef = useRef(isAudioOutputEnabled);
+
+  useEffect(() => { localLangRef.current = localLang; }, [localLang]);
+  useEffect(() => { clientLangRef.current = clientLang; }, [clientLang]);
+  useEffect(() => { isNoiseShieldActiveRef.current = isNoiseShieldActive; }, [isNoiseShieldActive]);
+  useEffect(() => { isAudioOutputEnabledRef.current = isAudioOutputEnabled; }, [isAudioOutputEnabled]);
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   
