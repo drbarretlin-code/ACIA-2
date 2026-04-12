@@ -214,25 +214,6 @@ export default function App() {
   const [isRecording, setIsRecording] = useState(false);
   const isRecordingRef = useRef(false);
 
-  useEffect(() => {
-    const handleBeforeUnload = async () => {
-      if (auth.currentUser) {
-        try {
-          await deleteDoc(doc(db, 'connections', auth.currentUser.uid));
-        } catch (e) {
-          console.error("Error deleting connection:", e);
-        }
-      }
-      if (roomId && socketRef.current) {
-        socketRef.current.emit('leave-room', roomId);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [roomId, auth.currentUser]);
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
@@ -306,6 +287,26 @@ export default function App() {
   // Socket.io Ref
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const socketRef = useRef<any>(null);
+
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (auth.currentUser) {
+        try {
+          await deleteDoc(doc(db, 'connections', auth.currentUser.uid));
+        } catch (e) {
+          console.error("Error deleting connection:", e);
+        }
+      }
+      if (roomId && socketRef.current) {
+        socketRef.current.emit('leave-room', roomId);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [roomId, auth.currentUser]);
 
   // Initialize Auth-based Room Join logic ONLY after handleJoinRoom is defined later
   
