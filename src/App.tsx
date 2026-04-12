@@ -217,6 +217,8 @@ export default function App() {
   const [projectName, setProjectName] = useState(() => localStorage.getItem('project_name') || '');
   const [customAlert, setCustomAlert] = useState<{message: string, type: 'alert' | 'confirm' | 'custom', onConfirm?: () => void, buttons?: {label: string, onClick: () => void, variant?: 'primary' | 'secondary' | 'danger'}[]} | null>(null);
 
+  const isRoomCreator = !!(user && roomCreatorId && user.uid === roomCreatorId);
+
   const [isRecording, setIsRecording] = useState(false);
   const isRecordingRef = useRef(false);
 
