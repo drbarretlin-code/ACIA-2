@@ -627,6 +627,12 @@ export default function App() {
             setIsSpeakingEnabled(data.isSpeakingEnabled);
             setIsRecording(data.isSpeakingEnabled);
           }
+          if (data.localLang && data.localLang !== localLangRef.current) {
+            setLocalLang(data.localLang);
+          }
+          if (data.clientLang && data.clientLang !== clientLangRef.current) {
+            setClientLang(data.clientLang);
+          }
           if (data.isClosed === true) {
             if (user?.uid !== data.creatorId) {
               setCustomAlert({ 
@@ -730,6 +736,8 @@ export default function App() {
         apiKey: userApiKey,
         apiKeyType: apiKeyType,
         projectName: projectName,
+        localLang: localLang,
+        clientLang: clientLang,
         isSpeakingEnabled: false,
         isClosed: false
       });
@@ -824,6 +832,21 @@ export default function App() {
   useEffect(() => {
     localLangRef.current = localLang;
   }, [localLang]);
+
+  useEffect(() => {
+    clientLangRef.current = clientLang;
+  }, [clientLang]);
+
+  // 同步語系設定到 Firestore (僅限房主)
+  useEffect(() => {
+    if (roomId && user && roomCreatorId === user.uid) {
+      const roomRef = doc(db, 'rooms', roomId);
+      updateDoc(roomRef, {
+        localLang: localLang,
+        clientLang: clientLang
+      }).catch(err => console.error("Failed to sync languages to Firestore:", err));
+    }
+  }, [localLang, clientLang, roomId, user, roomCreatorId]);
 
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
@@ -1055,6 +1078,7 @@ export default function App() {
 
     setInputText('');
     setIsTranslatingText(true);
+    setIsNoiseShieldActive(true);
 
     try {
       // 1. 優先保險路徑 (零配額限制)：Google 免費線上翻譯接口 (設計模式與 Google Translate 一致)
@@ -1062,14 +1086,15 @@ export default function App() {
         console.log("[handleSendText] Path 4: Using Free Google Translate (Primary)");
         const freeResult = await translateTextFree(
           currentInput,
-          sourceName,
-          targetName
+          sourceId,
+          targetId
         );
 
         setTranscripts(prev => prev.map(t => 
           t.id === msgId ? { ...t, translated: freeResult, isTranslating: false } : t
         ));
         setIsTranslatingText(false);
+        setIsNoiseShieldActive(false);
         return;
       } catch (freeErr: any) {
         console.warn("[handleSendText] Path 4 failed. Falling back to Path 1 (Live Session)...", freeErr.message);
@@ -1100,8 +1125,8 @@ export default function App() {
         console.log("[handleSendText] Path 2: Using Streaming REST Fallback");
         await translateTextStream(
           currentInput, 
-          sourceName, 
-          targetName, 
+          sourceId, 
+          targetId, 
           effectiveKey,
           (chunk) => {
             setTranscripts(prev => prev.map(t => 
@@ -1114,6 +1139,7 @@ export default function App() {
           t.id === msgId ? { ...t, isTranslating: false } : t
         ));
         setIsTranslatingText(false);
+        setIsNoiseShieldActive(false);
         return;
       } catch (streamErr: any) {
         console.warn("[handleSendText] Path 2 failed. Falling back to Path 3 (Standard REST)...", streamErr.message);
@@ -1123,8 +1149,8 @@ export default function App() {
       console.log("[handleSendText] Path 3: Using Standard REST Endpoint");
       const finalResult = await translateText(
         currentInput,
-        sourceName,
-        targetName,
+        sourceId,
+        targetId,
         effectiveKey
       );
 
@@ -1142,6 +1168,7 @@ export default function App() {
       ));
     } finally {
       setIsTranslatingText(false);
+      setIsNoiseShieldActive(false);
     }
   };
 
@@ -1426,8 +1453,15 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
             response_modalities: ["audio", "text"],
             temperature: 0.1,
             top_p: 0.95,
+            speech_config: {
+              voice_config: { prebuilt_voice_config: { voice_name: voiceType === 'Men' ? "Puck" : "Aoede" } }
+            }
           },
-          system_instruction: { parts: [{ text: systemInstruction }] }
+          system_instruction: { 
+            parts: [{ 
+              text: `${systemInstruction}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。請確保翻譯結果與使用者的語音輸入保持同步且完整。`
+            }] 
+          }
         },
         callbacks: {
           onopen: async () => {
@@ -1707,15 +1741,6 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
               }
             }
           }
-        },
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
-          },
-          systemInstruction: `${systemInstruction}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。請確保翻譯結果與使用者的語音輸入保持同步且完整。`,
-          outputAudioTranscription: {},
-          inputAudioTranscription: {},
         }
       });
     } catch (err: any) {
