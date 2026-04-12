@@ -1014,83 +1014,72 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // 介面翻譯
-  // Debounced translation for text input
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (!inputText.trim()) {
-        setTranslatedPreview('');
-        return;
-      }
-      
-      const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
-      const targetId = translationDirection === 'localToClient' ? clientLang : localLang;
-      
-      const sourceName = LANGUAGES.find(l => l.id === sourceId)?.name || sourceId;
-      const targetName = LANGUAGES.find(l => l.id === targetId)?.name || targetId;
-
-      const effectiveKey = userApiKey || roomApiKey;
-      if (!effectiveKey) {
-        setTranslatedPreview("⚠️ 請先在設定中輸入 API Key 以使用翻譯功能");
-        setIsTranslatingText(false);
-        return;
-      }
-
-      setIsTranslatingText(true);
-      try {
-        const result = await translateText(inputText, sourceName, targetName, effectiveKey);
-        setTranslatedPreview(result);
-      } catch (err: any) {
-        console.error("Preview translate error:", err);
-        if (err.message === 'API_KEY_MISSING') {
-          setTranslatedPreview("⚠️ API Key 設定錯誤");
-        } else {
-          const detail = err.message?.replace('TRANSLATION_FAILED: ', '') || '未知錯誤';
-          setTranslatedPreview(`⚠️ 翻譯失敗: ${detail}`);
-        }
-      } finally {
-        setIsTranslatingText(false);
-      }
-    }, 800);
-
-    return () => clearTimeout(timer);
-  }, [inputText, translationDirection, localLang, clientLang, userApiKey, roomApiKey]);
+  // 文字輸入轉譯 (已根據使用者需求停用自動預覽)
 
   const handleSendText = async () => {
     if (!inputText.trim() || !user) return;
 
-    let finalTranslation = translatedPreview;
+    const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
+    const targetId = translationDirection === 'localToClient' ? clientLang : localLang;
+    const sourceName = LANGUAGES.find(l => l.id === sourceId)?.name || sourceId;
+    const targetName = LANGUAGES.find(l => l.id === targetId)?.name || targetId;
+    const effectiveKey = userApiKey || roomApiKey;
 
-    // 如果翻譯預覽為空或正在翻譯中，則立即執行翻譯
-    if (!finalTranslation.trim() || isTranslatingText) {
-      const effectiveKey = userApiKey || roomApiKey;
-      if (!effectiveKey) {
-        toast.error("找不到 API Key，請先在設定中輸入金鑰。");
-        return;
-      }
+    if (!effectiveKey) {
+      toast.error("找不到 API Key，請先在設定中輸入金鑰。");
+      return;
+    }
 
-      setIsTranslatingText(true);
-      try {
-        const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
-        const targetId = translationDirection === 'localToClient' ? clientLang : localLang;
-        const sourceName = LANGUAGES.find(l => l.id === sourceId)?.name || sourceId;
-        const targetName = LANGUAGES.find(l => l.id === targetId)?.name || targetId;
-        
-        finalTranslation = await translateText(inputText, sourceName, targetName, effectiveKey);
-        setTranslatedPreview(finalTranslation);
-      } catch (err: any) {
-        console.error("Manual translate error:", err);
-        if (err.message === 'API_KEY_MISSING') {
-          toast.error("API Key 缺失，請在設定中確認。");
-        } else {
-          const detail = err.message?.replace('TRANSLATION_FAILED: ', '') || '未知錯誤';
-          toast.error(`翻譯失敗: ${detail}`);
+    const currentInput = inputText;
+    const msgId = Date.now().toString();
+    
+    // 立即將原文加入列表，進入「轉譯中」狀態
+    setTranscripts(prev => [...prev, {
+      id: msgId,
+      original: currentInput,
+      translated: "",
+      isFinal: true,
+      isTranslating: true,
+      sourceLang: sourceName,
+      targetLang: targetName,
+      createdAt: Date.now(),
+      isLocal: true,
+      ...(userName ? { speakerName: userName } : {})
+    }]);
+
+    setInputText('');
+    setIsTranslatingText(true);
+
+    try {
+      // 使用 Streaming 轉譯，達成「打字機式」即出效果，且完全靜音（不觸碰麥克風）
+      await translateTextStream(
+        currentInput, 
+        sourceName, 
+        targetName, 
+        effectiveKey,
+        (chunk) => {
+          // 逐字更新列表中的轉譯結果
+          setTranscripts(prev => prev.map(t => 
+            t.id === msgId ? { ...t, translated: (t.translated || "") + chunk } : t
+          ));
         }
-        setIsTranslatingText(false);
-        return;
-      } finally {
-        setIsTranslatingText(false);
-      }
+      );
+      
+      // 完成後標記為非轉譯中
+      setTranscripts(prev => prev.map(t => 
+        t.id === msgId ? { ...t, isTranslating: false } : t
+      ));
+
+    } catch (err: any) {
+      console.error("Manual stream translate error:", err);
+      const detail = err.message?.replace('TRANSLATION_FAILED: ', '') || '未知錯誤';
+      toast.error(`轉譯失敗: ${detail}`);
+      
+      setTranscripts(prev => prev.map(t => 
+        t.id === msgId ? { ...t, isTranslating: false, translated: "⚠️ 轉譯失敗" } : t
+      ));
+    } finally {
+      setIsTranslatingText(false);
     }
 
     if (!finalTranslation.trim()) return;
@@ -2580,27 +2569,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
           {/* Text Input Translation Bar */}
           <div className="border-t border-slate-100 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md p-4">
             <div className="max-w-4xl mx-auto space-y-3">
-              {/* Translation Preview */}
-              {inputText.trim() && (
-                <div className="flex items-start gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="flex-1 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100/50 dark:border-blue-800/30 rounded-xl p-3">
-                    <div className="text-[10px] text-blue-500 dark:text-blue-400 font-mono mb-1 uppercase tracking-wider flex items-center gap-1">
-                      <Zap className="w-3 h-3" />
-                      Translation Preview
-                    </div>
-                    <div className="text-sm text-blue-700 dark:text-blue-300 min-h-[1.5rem]">
-                      {isTranslatingText ? (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Translating...</span>
-                        </div>
-                      ) : (
-                        translatedPreview || '...'
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* Translation Preview (停用預覽，改為發送時串流出現) */}
 
               {/* Input Area */}
               <div className="flex items-end gap-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-2 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">

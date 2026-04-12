@@ -85,3 +85,85 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
     throw error;
   }
 }
+
+/**
+ * Streaming version of translateText
+ * Uses standard fetch to the Google API to enable chunked response handling
+ */
+export async function translateTextStream(
+  text: string,
+  sourceLang: string,
+  targetLang: string,
+  apiKey: string,
+  onChunk: (chunk: string) => void
+): Promise<string> {
+  const cleanApiKey = apiKey.trim();
+  const systemPrompt = `You are a professional translator. 
+Translate the following text from ${sourceLang} to ${targetLang}. 
+Maintain original tone. Output ONLY translated text.
+${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPORTANT: ALWAYS use Traditional Chinese (繁體中文).' : ''}`;
+
+  const payload = {
+    contents: [{ parts: [{ text: `${systemPrompt}\n\nTEXT:\n${text}` }] }],
+    generationConfig: { temperature: 0.1 }
+  };
+
+  // We'll try the most likely models first for streaming
+  const models = ["gemini-2.0-flash", "gemini-1.5-flash-002", "gemini-1.5-flash"];
+  let lastError: any = null;
+
+  for (const modelId of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:streamGenerateContent?alt=sse&key=${cleanApiKey}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `HTTP ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("Could not get stream reader");
+
+      const decoder = new TextDecoder();
+      let fullText = "";
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.substring(6));
+              const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              if (content) {
+                fullText += content;
+                onChunk(content);
+              }
+            } catch (e) {
+              // ignore parse errors for partial lines
+            }
+          }
+        }
+      }
+      
+      return fullText;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`Streaming failed for ${modelId}:`, err.message);
+      if (err.message.includes("429")) continue; // Try next on quota
+      break; // Exit on other fatal errors
+    }
+  }
+
+  throw lastError || new Error("Streaming translation failed");
+}
