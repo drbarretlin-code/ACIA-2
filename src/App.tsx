@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { io, Socket } from 'socket.io-client';
+
 import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
 import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield } from 'lucide-react';
@@ -70,8 +70,14 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
   </div>
 ));
 
-// 初始化簡轉繁轉換器
-const s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+// 初始化簡轉繁轉換器 (加上 Try-Catch 以防程式碼載入時發生全域錯誤)
+let s2tConverter: any;
+try {
+  s2tConverter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+} catch (e) {
+  console.error("OpenCC initialization failed:", e);
+  s2tConverter = (text: string) => text;
+}
 
 // 定義支援的語言與腔調清單
 const LANGUAGES = [
@@ -215,11 +221,7 @@ export default function App() {
   const isRecordingRef = useRef(false);
 
 
-  useEffect(() => {
-    isRecordingRef.current = isRecording;
-  }, [isRecording]);
 
-      const lastMessageTimeRef = useRef<number>(Date.now());
 
   const [isSpeakingEnabled, setIsSpeakingEnabled] = useState(false);
   const [localLang, setLocalLang] = useState(getDefaultLang);
@@ -278,15 +280,17 @@ export default function App() {
   const clientLangRef = useRef(clientLang);
   const isNoiseShieldActiveRef = useRef(isNoiseShieldActive);
   const isAudioOutputEnabledRef = useRef(isAudioOutputEnabled);
+  const lastMessageTimeRef = useRef<number>(Date.now());
 
+  useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
   useEffect(() => { localLangRef.current = localLang; }, [localLang]);
   useEffect(() => { clientLangRef.current = clientLang; }, [clientLang]);
   useEffect(() => { isNoiseShieldActiveRef.current = isNoiseShieldActive; }, [isNoiseShieldActive]);
   useEffect(() => { isAudioOutputEnabledRef.current = isAudioOutputEnabled; }, [isAudioOutputEnabled]);
   
   // Socket.io Ref
-  const [isSocketConnected, setIsSocketConnected] = useState(false);
-  const socketRef = useRef<any>(null);
+
+
 
   useEffect(() => {
     const handleBeforeUnload = async () => {
@@ -297,16 +301,13 @@ export default function App() {
           console.error("Error deleting connection:", e);
         }
       }
-      if (roomId && socketRef.current) {
-        socketRef.current.emit('leave-room', roomId);
-      }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [roomId, auth.currentUser]);
+  }, [auth.currentUser]);
 
   // Initialize Auth-based Room Join logic ONLY after handleJoinRoom is defined later
   
@@ -866,104 +867,8 @@ export default function App() {
   const ydocRef = useRef<Y.Doc>(new Y.Doc());
   const yTranscriptsRef = useRef<Y.Array<any>>(ydocRef.current.getArray('transcripts'));
 
-  useEffect(() => {
-    // 初始化 Socket.io 連線
-    socketRef.current = io(window.location.origin, {
-      path: "/socket.io",
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000,
-      transports: ['websocket'] // 強制使用 websocket 以提升穩定性
-    });
+  // 讀取與更新費用統計
 
-    const ydoc = ydocRef.current;
-
-    // Listen for local Yjs updates and broadcast them
-    let updateTimeout: NodeJS.Timeout | null = null;
-    ydoc.on('update', (update) => {
-      if (updateTimeout) return;
-      updateTimeout = setTimeout(() => {
-        if (roomIdRef.current) {
-          socketRef.current?.emit('yjs-update', { roomId: roomIdRef.current, update });
-        }
-        updateTimeout = null;
-      }, 100); // 節流：每 100ms 最多發送一次更新
-    });
-
-    socketRef.current.on('yjs-update', (update: ArrayBuffer) => {
-      // Apply remote updates to local Yjs document
-      Y.applyUpdate(ydoc, new Uint8Array(update));
-    });
-
-    socketRef.current.on('connect', () => {
-      console.log('Socket connected:', socketRef.current?.id);
-      setIsSocketConnected(true);
-    });
-
-    socketRef.current.on('disconnect', () => {
-      console.log('Socket disconnected');
-      setIsSocketConnected(false);
-    });
-
-    socketRef.current.on('translation chunk', (data) => {
-      setTranscripts(prev => {
-        const newTranscripts = [...prev];
-        const lastIndex = newTranscripts.length - 1;
-        if (lastIndex >= 0) {
-          newTranscripts[lastIndex] = {
-            ...newTranscripts[lastIndex],
-            translated: (newTranscripts[lastIndex].translated || "") + data.chunk,
-            isTranslating: true
-          };
-        }
-        return newTranscripts;
-      });
-    });
-
-    socketRef.current.on('translation end', () => {
-      setTranscripts(prev => {
-        const newTranscripts = [...prev];
-        const lastIndex = newTranscripts.length - 1;
-        if (lastIndex >= 0) {
-          newTranscripts[lastIndex] = {
-            ...newTranscripts[lastIndex],
-            isTranslating: false
-          };
-        }
-        return newTranscripts;
-      });
-    });
-
-    socketRef.current.on('translation error', (data) => {
-      console.error("Translation error from server:", data.error);
-      toast.error(`翻譯失敗: ${data.error}`);
-      setErrorMsg(`翻譯失敗: ${data.error}`);
-      setTranscripts(prev => {
-        const newTranscripts = [...prev];
-        const lastIndex = newTranscripts.length - 1;
-        if (lastIndex >= 0) {
-          newTranscripts[lastIndex] = {
-            ...newTranscripts[lastIndex],
-            isTranslating: false,
-            translated: newTranscripts[lastIndex].translated || "(翻譯失敗)"
-          };
-        }
-        return newTranscripts;
-      });
-    });
-
-    return () => {
-      socketRef.current?.disconnect();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (socketRef.current && roomId && isSocketConnected) {
-      socketRef.current.emit('join-room', roomId);
-    }
-  }, [roomId, isSocketConnected]);
 
   // 使用 ref 快取驗證狀態，避免重複請求
   const apiKeyValidationCache = useRef<{ [key: string]: { type: 'paid' | 'free', projectName: string } }>({});
