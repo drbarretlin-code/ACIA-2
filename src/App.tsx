@@ -475,7 +475,7 @@ export default function App() {
     // Sync newly finalized transcripts to Firestore
     if (roomId && user) {
       const lastTranscript = transcripts[transcripts.length - 1];
-      if (lastTranscript && lastTranscript.isFinal && !lastTranscript.id.startsWith('fs-')) {
+      if (lastTranscript && lastTranscript.isFinal && !lastTranscript.isTranslating && !lastTranscript.id.startsWith('fs-')) {
         // Mark as synced to avoid duplicate writes
         const transcriptToSave = { ...lastTranscript, id: `fs-${lastTranscript.id}` };
         
