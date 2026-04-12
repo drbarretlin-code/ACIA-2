@@ -1059,23 +1059,25 @@ export default function App() {
     try {
       // 1. 優先路徑：若錄音正在進行，優先嘗試 WebSocket 發送（零配額消耗）
       if (isRecording && sessionRef.current) {
-        console.log("[handleSendText] Path 1: Probing sessionRef.current prototype...");
+        console.log("[handleSendText] Path 1: Probing sessionRef.current prototype chain...");
         const session = sessionRef.current as any;
         
         // 🕵️ Deep Probe: Find METHODS on the object and its prototype
         const allProperties = new Set<string>();
         let currentObj = session;
         while (currentObj && currentObj !== Object.prototype) {
-          Object.getOwnPropertyNames(currentObj).forEach(prop => allProperties.add(prop));
+          Object.getOwnPropertyNames(currentObj).forEach(prop => {
+             if (typeof session[prop] === 'function') allProperties.add(prop);
+          });
           currentObj = Object.getPrototypeOf(currentObj);
         }
         
-        const availableMethods = Array.from(allProperties).filter(k => typeof session[k] === 'function');
-        console.log("[handleSendText] Deep Proved Methods:", availableMethods);
+        const availableMethods = Array.from(allProperties);
+        console.log("[handleSendText] Found Available Methods:", availableMethods);
 
         // 🚀 Multi-Method Try
         const textMessage = { parts: [{ text: currentInput }] };
-        const candidates = ['send', 'sendMessage', 'sendInput', 'sendContent'];
+        const candidates = ['send', 'sendMessage', 'sendInput', 'sendContent', 'postMessage', 'input'];
         const foundMethod = candidates.find(m => typeof session[m] === 'function');
 
         if (foundMethod) {
@@ -1088,7 +1090,7 @@ export default function App() {
             console.warn(`[handleSendText] Path 1 call failed to ${foundMethod}:`, sendErr.message);
           }
         } else {
-          console.warn("[handleSendText] Path 1: No valid send method found in prototype chain.");
+          console.warn("[handleSendText] Path 1: No valid send method found. Methods searched:", candidates);
         }
       }
 

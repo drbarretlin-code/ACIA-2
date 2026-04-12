@@ -31,7 +31,7 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
   
   // Versions and prefix combinations
   const versions = ["v1beta", "v1"];
-  const prefixes = ["models/", ""]; 
+  const prefixes = ["models/"]; 
   let lastError: any = null;
 
   for (const modelId of models) {
