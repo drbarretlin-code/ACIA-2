@@ -651,11 +651,15 @@ export default function App() {
           const firestoreIds = new Set(firestoreTranscripts.map(t => t.id));
           
           // 1. 更新已存在的 Firestore 資料
-          // 2. 保留本地尚未同步的非最終狀態資料
-          const localNonFinal = prev.filter(t => !t.isFinal && !firestoreIds.has(t.id));
+          // 2. 保留本地尚未同步的資料 (包含非最終狀態，以及剛發送但尚未同步的最終狀態)
+          const localToKeep = prev.filter(t => {
+            const inFirestore = firestoreIds.has(t.id);
+            const prefixedInFirestore = !t.id.startsWith('fs-') && firestoreIds.has(`fs-${t.id}`);
+            return !inFirestore && !prefixedInFirestore;
+          });
           
           // 確保排序穩定：Firestore 資料已按 timestamp 排序
-          const merged = [...firestoreTranscripts, ...localNonFinal].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          const merged = [...firestoreTranscripts, ...localToKeep].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
           console.log("Merged transcripts:", merged);
           return merged;
         });
@@ -1027,7 +1031,32 @@ export default function App() {
   }, [inputText, translationDirection, localLang, clientLang, userApiKey, roomApiKey]);
 
   const handleSendText = async () => {
-    if (!inputText.trim() || !translatedPreview.trim() || !user) return;
+    if (!inputText.trim() || !user) return;
+
+    let finalTranslation = translatedPreview;
+
+    // 如果翻譯預覽為空或正在翻譯中，則立即執行翻譯
+    if (!finalTranslation.trim() || isTranslatingText) {
+      setIsTranslatingText(true);
+      try {
+        const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
+        const targetId = translationDirection === 'localToClient' ? clientLang : localLang;
+        const sourceName = LANGUAGES.find(l => l.id === sourceId)?.name || sourceId;
+        const targetName = LANGUAGES.find(l => l.id === targetId)?.name || targetId;
+        
+        finalTranslation = await translateText(inputText, sourceName, targetName, userApiKey || roomApiKey || '');
+        setTranslatedPreview(finalTranslation);
+      } catch (err) {
+        console.error("Manual translate error:", err);
+        toast.error("翻譯失敗，請檢查 API Key 或網路連線");
+        setIsTranslatingText(false);
+        return;
+      } finally {
+        setIsTranslatingText(false);
+      }
+    }
+
+    if (!finalTranslation.trim()) return;
 
     const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
     const targetId = translationDirection === 'localToClient' ? clientLang : localLang;
@@ -1035,7 +1064,7 @@ export default function App() {
     const newTranscript: Transcript = {
       id: Date.now().toString(),
       original: inputText,
-      translated: translatedPreview,
+      translated: finalTranslation,
       isFinal: true,
       isTranslating: false,
       sourceLang: sourceId,
@@ -2556,10 +2585,14 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
 
                 <button
                   onClick={handleSendText}
-                  disabled={!inputText.trim() || !translatedPreview.trim() || isTranslatingText}
+                  disabled={!inputText.trim()}
                   className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-400 dark:disabled:bg-slate-700 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all shrink-0"
                 >
-                  <Send className="w-5 h-5" />
+                  {isTranslatingText ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>
