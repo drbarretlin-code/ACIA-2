@@ -1067,17 +1067,20 @@ export default function App() {
         let currentObj = session;
         while (currentObj && currentObj !== Object.prototype) {
           Object.getOwnPropertyNames(currentObj).forEach(prop => {
-             if (typeof session[prop] === 'function') allProperties.add(prop);
+             try {
+               if (typeof session[prop] === 'function') allProperties.add(prop);
+             } catch(e) {}
           });
           currentObj = Object.getPrototypeOf(currentObj);
         }
         
         const availableMethods = Array.from(allProperties);
-        console.log("[handleSendText] Found Available Methods:", availableMethods);
+        // 🚀 CRITICAL: Print names as string so user doesn't need to click to expand
+        console.log("[handleSendText] Found Available Methods: " + availableMethods.join(', '));
 
-        // 🚀 Multi-Method Try
+        // 🚀 Multi-Method Try (Expanded Candidates)
         const textMessage = { parts: [{ text: currentInput }] };
-        const candidates = ['send', 'sendMessage', 'sendInput', 'sendContent', 'postMessage', 'input'];
+        const candidates = ['send', 'sendMessage', 'sendInput', 'sendContent', 'postMessage', 'input', 'write', 'emit', 'submit'];
         const foundMethod = candidates.find(m => typeof session[m] === 'function');
 
         if (foundMethod) {
@@ -1090,7 +1093,7 @@ export default function App() {
             console.warn(`[handleSendText] Path 1 call failed to ${foundMethod}:`, sendErr.message);
           }
         } else {
-          console.warn("[handleSendText] Path 1: No valid send method found. Methods searched:", candidates);
+          console.warn("[handleSendText] Path 1: No valid send method found. Please check the method names list above.");
         }
       }
 
