@@ -1081,29 +1081,6 @@ export default function App() {
     } finally {
       setIsTranslatingText(false);
     }
-
-    if (!finalTranslation.trim()) return;
-
-    const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
-    const targetId = translationDirection === 'localToClient' ? clientLang : localLang;
-
-    const newTranscript: Transcript = {
-      id: Date.now().toString(),
-      original: inputText,
-      translated: finalTranslation,
-      isFinal: true,
-      isTranslating: false,
-      sourceLang: sourceId,
-      targetLang: targetId,
-      createdAt: Date.now(),
-      speakerId: user.uid,
-      speakerName: userName || '匿名',
-      isLocal: true
-    };
-
-    setTranscripts(prev => [...prev, newTranscript]);
-    setInputText('');
-    setTranslatedPreview('');
   };
 
   const getUiText = (key: string) => {
