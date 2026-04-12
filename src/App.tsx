@@ -238,13 +238,6 @@ export default function App() {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
-  useEffect(() => {
-    const roomIdFromUrl = new URLSearchParams(window.location.search).get('room');
-    if (roomIdFromUrl && isAuthReady) {
-      handleJoinRoom();
-    }
-  }, [isAuthReady]);
-
       const lastMessageTimeRef = useRef<number>(Date.now());
 
   const [isSpeakingEnabled, setIsSpeakingEnabled] = useState(false);
@@ -309,6 +302,12 @@ export default function App() {
   useEffect(() => { clientLangRef.current = clientLang; }, [clientLang]);
   useEffect(() => { isNoiseShieldActiveRef.current = isNoiseShieldActive; }, [isNoiseShieldActive]);
   useEffect(() => { isAudioOutputEnabledRef.current = isAudioOutputEnabled; }, [isAudioOutputEnabled]);
+  
+  // Socket.io Ref
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const socketRef = useRef<any>(null);
+
+  // Initialize Auth-based Room Join logic ONLY after handleJoinRoom is defined later
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   
@@ -838,14 +837,6 @@ export default function App() {
     localStorage.setItem('voice_type', voiceType);
   }, [voiceType]);
 
-  useEffect(() => {
-    localLangRef.current = localLang;
-  }, [localLang]);
-
-  useEffect(() => {
-    clientLangRef.current = clientLang;
-  }, [clientLang]);
-
   // 同步語系設定到 Firestore (僅限房主)
   useEffect(() => {
     if (roomId && user && roomCreatorId === user.uid) {
@@ -857,9 +848,14 @@ export default function App() {
     }
   }, [localLang, clientLang, roomId, user, roomCreatorId]);
 
-  const [isSocketConnected, setIsSocketConnected] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
-  
+  // Auth-based auto-join must happen AFTER handleJoinRoom is defined
+  useEffect(() => {
+    const roomIdFromUrl = new URLSearchParams(window.location.search).get('room');
+    if (roomIdFromUrl && isAuthReady) {
+      handleJoinRoom();
+    }
+  }, [isAuthReady]);
+
   const roomIdRef = useRef(roomId);
   useEffect(() => {
     roomIdRef.current = roomId;
