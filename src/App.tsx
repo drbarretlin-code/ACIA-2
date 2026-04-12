@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { io, Socket } from 'socket.io-client';
 import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send } from 'lucide-react';
+import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
 import { QRCodeSVG } from 'qrcode.react';
@@ -280,6 +280,7 @@ export default function App() {
   const [translatedPreview, setTranslatedPreview] = useState('');
   const [isTranslatingText, setIsTranslatingText] = useState(false);
   const [translationDirection, setTranslationDirection] = useState<'localToClient' | 'clientToLocal'>('localToClient');
+  const [isNoiseShieldActive, setIsNoiseShieldActive] = useState(false);
   
   // 費用統計相關 state
   const [sessionSeconds, setSessionSeconds] = useState(0);
@@ -316,6 +317,11 @@ export default function App() {
   const clientLangRef = useRef<string>(clientLang);
   const transcriptsRef = useRef<Transcript[]>([]);
   const isAudioOutputEnabledRef = useRef<boolean>(isAudioOutputEnabled);
+  const isNoiseShieldActiveRef = useRef<boolean>(isNoiseShieldActive);
+  
+  useEffect(() => {
+    isNoiseShieldActiveRef.current = isNoiseShieldActive;
+  }, [isNoiseShieldActive]);
 
   // 讀取與更新費用統計
   const updateApiUsage = (type: 'request' | 'tokens', count: number = 1) => {
@@ -1033,7 +1039,7 @@ export default function App() {
     const currentInput = inputText;
     const msgId = Date.now().toString();
     
-    // 立即將原文加入列表，進入「轉譯中」狀態
+    // 立即將原文加入列表，進入「轉錄中」狀態
     setTranscripts(prev => [...prev, {
       id: msgId,
       original: currentInput,
@@ -1051,14 +1057,24 @@ export default function App() {
     setIsTranslatingText(true);
 
     try {
-      // 使用 Streaming 轉譯，達成「打字機式」即出效果，且完全靜音（不觸碰麥克風）
+      // 優先路徑：若錄音會話開啟，直接透過 WebSocket 發送文字（零配額消耗、極速）
+      if (isLiveRef.current && sessionRef.current) {
+        console.log("[handleSendText] Using Live Session for instant translation");
+        sessionRef.current.send({ parts: [{ text: currentInput }] });
+        
+        // 此時由 Live Session 的 onmessage 回傳翻譯，handleSendText 任務完成
+        setIsTranslatingText(false);
+        return;
+      }
+
+      // 備援路徑：錄音未開啟時，使用優化後的 Streaming REST 轉譯
       await translateTextStream(
         currentInput, 
         sourceName, 
         targetName, 
         effectiveKey,
         (chunk) => {
-          // 逐字更新列表中的轉譯結果
+          // 逐字更新列表中的轉錄結果
           setTranscripts(prev => prev.map(t => 
             t.id === msgId ? { ...t, translated: (t.translated || "") + chunk } : t
           ));
@@ -1417,7 +1433,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
                 }
                 const base64 = btoa(binary);
 
-                if (sessionRef.current) {
+                if (sessionRef.current && !isNoiseShieldActiveRef.current) {
                   sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
                 }
               };
@@ -2561,6 +2577,22 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   </span>
                 </button>
                 
+                <button 
+                  onClick={() => setIsNoiseShieldActive(prev => !prev)}
+                  className={cn(
+                    "p-2.5 rounded-xl border transition-all shrink-0 flex items-center gap-2",
+                    isNoiseShieldActive 
+                      ? "bg-amber-100 border-amber-300 text-amber-600 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-400" 
+                      : "bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-600"
+                  )}
+                  title={isNoiseShieldActive ? "Noise Shield Active (Mic Muted)" : "Noise Shield Inactive (Mic Live)"}
+                >
+                  <Shield className={cn("w-4 h-4", isNoiseShieldActive && "animate-pulse")} />
+                  <span className="text-xs font-medium hidden sm:inline">
+                    自動感應靜音
+                  </span>
+                </button>
+                
                 <textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -2577,8 +2609,9 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
 
                 <button
                   onClick={handleSendText}
-                  disabled={!inputText.trim()}
+                  disabled={!inputText.trim() || !isNoiseShieldActive}
                   className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-400 dark:disabled:bg-slate-700 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all shrink-0"
+                  title={!isNoiseShieldActive ? "請開啟自動感應靜音以發送文字" : ""}
                 >
                   {isTranslatingText ? (
                     <Loader2 className="w-5 h-5 animate-spin" />

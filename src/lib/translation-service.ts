@@ -110,12 +110,10 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
 
   // 備援模型清單：優先嘗試輕量、高配額模型
   const models = [
-    "gemini-2.0-flash",
     "gemini-1.5-flash",
     "gemini-1.5-flash-8b",
-    "gemini-1.5-flash-002",
-    "gemini-1.5-pro-002",
-    "gemini-2.0-flash-exp"
+    "gemini-2.0-flash",
+    "gemini-1.5-pro-002"
   ];
   let lastError: any = null;
 
@@ -135,12 +133,11 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
         const errMsg = errData.error?.message || `HTTP ${state}`;
         const lowerMsg = errMsg.toLowerCase();
 
-        // 如果是 404 (找不到型號)、400 (不支援此方法) 或明顯的規格錯誤，直接跳下一個
-        const shouldSkip = state === 404 || state === 400 || 
+        // 如果是 404 (找不到型號)、400 (不支援此方法) 或明顯的配額錯誤，跳往下一型號
+        const shouldSkip = state === 404 || state === 400 || state === 429 ||
                            lowerMsg.includes("not found") || 
                            lowerMsg.includes("not supported") || 
                            lowerMsg.includes("invalid") ||
-                           lowerMsg.includes("429") || 
                            lowerMsg.includes("quota") || 
                            lowerMsg.includes("limit");
 
@@ -184,12 +181,14 @@ ${targetLang === 'Traditional Chinese' || targetLang === '繁體中文' ? 'IMPOR
       return fullText;
     } catch (err: any) {
       lastError = err;
-      // 如果不是透過上面的 continue 跳出的錯誤（可能是網路問題），也嘗試下一個
-      console.warn(`[Stream] Model ${modelId} unexpected error:`, err.message);
+      console.warn(`[Stream] Model ${modelId} encountered error:`, err.message);
       continue;
     }
   }
 
   const finalMsg = lastError?.message || "All models failed";
+  if (finalMsg.toLowerCase().includes("quota") || finalMsg.includes("429")) {
+    throw new Error("TRANSLATION_FAILED: API 配額已滿，請稍待 30 秒或開啟錄音功能以節省配額。");
+  }
   throw new Error(`TRANSLATION_FAILED: ${finalMsg}`);
 }
