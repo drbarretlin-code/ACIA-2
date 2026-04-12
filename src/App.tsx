@@ -1016,12 +1016,24 @@ export default function App() {
       const sourceName = LANGUAGES.find(l => l.id === sourceId)?.name || sourceId;
       const targetName = LANGUAGES.find(l => l.id === targetId)?.name || targetId;
 
+      const effectiveKey = userApiKey || roomApiKey;
+      if (!effectiveKey) {
+        setTranslatedPreview("⚠️ 請先在設定中輸入 API Key 以使用翻譯功能");
+        setIsTranslatingText(false);
+        return;
+      }
+
       setIsTranslatingText(true);
       try {
-        const result = await translateText(inputText, sourceName, targetName, userApiKey || roomApiKey || '');
+        const result = await translateText(inputText, sourceName, targetName, effectiveKey);
         setTranslatedPreview(result);
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
+        if (err.message === 'API_KEY_MISSING') {
+          setTranslatedPreview("⚠️ API Key 設定錯誤");
+        } else {
+          setTranslatedPreview("⚠️ 翻譯發生錯誤");
+        }
       } finally {
         setIsTranslatingText(false);
       }
@@ -1037,6 +1049,12 @@ export default function App() {
 
     // 如果翻譯預覽為空或正在翻譯中，則立即執行翻譯
     if (!finalTranslation.trim() || isTranslatingText) {
+      const effectiveKey = userApiKey || roomApiKey;
+      if (!effectiveKey) {
+        toast.error("找不到 API Key，請先在設定中輸入金鑰。");
+        return;
+      }
+
       setIsTranslatingText(true);
       try {
         const sourceId = translationDirection === 'localToClient' ? localLang : clientLang;
@@ -1044,11 +1062,15 @@ export default function App() {
         const sourceName = LANGUAGES.find(l => l.id === sourceId)?.name || sourceId;
         const targetName = LANGUAGES.find(l => l.id === targetId)?.name || targetId;
         
-        finalTranslation = await translateText(inputText, sourceName, targetName, userApiKey || roomApiKey || '');
+        finalTranslation = await translateText(inputText, sourceName, targetName, effectiveKey);
         setTranslatedPreview(finalTranslation);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Manual translate error:", err);
-        toast.error("翻譯失敗，請檢查 API Key 或網路連線");
+        if (err.message === 'API_KEY_MISSING') {
+          toast.error("API Key 缺失，請在設定中確認。");
+        } else {
+          toast.error("翻譯失敗，請檢查 API Key 或網路連線");
+        }
         setIsTranslatingText(false);
         return;
       } finally {

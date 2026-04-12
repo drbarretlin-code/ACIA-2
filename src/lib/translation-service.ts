@@ -7,6 +7,9 @@ export async function translateText(
   apiKey: string
 ): Promise<string> {
   if (!text.trim()) return '';
+  if (!apiKey) {
+    throw new Error('API_KEY_MISSING');
+  }
 
   try {
     const genAI = new GoogleGenAI(apiKey);
