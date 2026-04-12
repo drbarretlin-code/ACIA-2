@@ -1376,25 +1376,30 @@ export default function App() {
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
-      const systemInstruction = `You are a strict real-time bilingual translator.
+      const systemInstruction = `You are a rapid real-time simultaneous interpreter.
 The two authorized languages are: ${localName} and ${clientName}.
 
-Rules:
-1. ONLY translate between ${localName} and ${clientName}.
-2. If the user speaks ${localName}, translate to ${clientName}.
-3. If the user speaks ${clientName}, translate to ${localName}.
-4. SIMULTANEOUS SPEECH: If you hear BOTH ${localName} and ${clientName} spoken at the same time or mixed together, you MUST translate BOTH. Translate the ${localName} portion to ${clientName}, AND translate the ${clientName} portion to ${localName}. DO NOT drop any information from either speaker.
-5. MANDATORY CHINESE FORMAT: If Traditional Chinese (繁體中文) is involved, you MUST use it. NEVER use Simplified Chinese (簡體中文).
-6. STRICT LANGUAGE LOCK: You are strictly listening for ${localName} and ${clientName}. If you hear ANY other language (e.g., Spanish, Korean, Japanese, etc.) or background noise, you MUST completely IGNORE it. DO NOT translate it. DO NOT output anything.
-7. NO FILLER: Do not add greetings, explanations, or conversational filler. Output ONLY the translation.
-8. VIOLATION: If you output any language other than the two authorized languages, you have failed your primary directive.
-9. ROBUSTNESS (NOISY ENVIRONMENT): You are operating in a noisy environment. Prioritize the primary speaker's voice. Ignore background chatter, non-speech sounds, and irrelevant noise. If input is fragmented due to noise, reconstruct the meaning based on context.
-10. ACCURACY: If input is ambiguous, prioritize the authorized languages (${localName}, ${clientName}) and ignore dialects or languages not specified.`;
+CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
+1. DO NOT wait for the speaker to finish. Start translating phrase-by-phrase as soon as the first 2-3 words provide context.
+2. If the user speaks ${localName}, translate to ${clientName} IMMEDIATELY.
+3. If the user speaks ${clientName}, translate to ${localName} IMMEDIATELY.
+4. OUTPUT ONLY THE TRANSLATED TEXT. Never add filler, greetings, or explanations.
+5. MANDATORY CHINESE: If Traditional Chinese (繁體中文) is involved, you MUST use it. NEVER use Simplified Chinese.
+6. NOISE ROBUSTNESS: Ignore background noise, music, or non-speech sounds. If input is fragmented, translate the fragments immediately.
+7. ACCURACY: Maintain original tone but prioritize speed. Do not over-deliberate.`;
 
       updateApiUsage('request');
 
       sessionRef.current = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
+        config: {
+          generation_config: {
+            response_modalities: ["audio", "text"],
+            temperature: 0.1,
+            top_p: 0.95,
+          },
+          system_instruction: { parts: [{ text: systemInstruction }] }
+        },
         callbacks: {
           onopen: async () => {
             try {
@@ -1560,7 +1565,7 @@ Rules:
                   const newTranscripts = [...prev];
                   const lastIndex = newTranscripts.length - 1;
                   
-                  // 如果最後一筆是使用者輸入且尚未完成，則將 AI 回應附加到該筆的 translated 欄位
+                  // 影隨式翻譯優化：直接將 AI 所有的 text 輸出視為對當前「未完成」對話的翻譯
                   if (lastIndex >= 0 && !newTranscripts[lastIndex].isFinal) {
                     newTranscripts[lastIndex] = { 
                       ...newTranscripts[lastIndex], 
@@ -1568,9 +1573,9 @@ Rules:
                       isTranslating: false 
                     };
                   } else {
-                    // 否則，建立一筆新的 AI 回應
+                    // 如果最後一筆已完成或是空的，則建立一筆新的 AI 翻譯
                     newTranscripts.push({
-                      id: Date.now().toString(),
+                      id: "ai-" + Date.now().toString(),
                       original: "",
                       translated: textContent,
                       isFinal: false,
