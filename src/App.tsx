@@ -1371,7 +1371,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       sessionRef.current = await ai.live.connect({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3.1-flash-live-preview",
         config: {
           generation_config: {
             response_modalities: ["audio", "text"],
@@ -1446,8 +1446,8 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
                   }
                   const base64 = btoa(binary);
 
-                  if (sessionRef.current) {
-                    sessionRef.current.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+                  if (sessionRef.current && !isNoiseShieldActiveRef.current) {
+                    sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
                   }
                   audioBuffer = [];
                 }
@@ -2620,7 +2620,9 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      handleSendText();
+                      if (inputText.trim() && isRecording && isNoiseShieldActive) {
+                        handleSendText();
+                      }
                     }
                   }}
                 />
