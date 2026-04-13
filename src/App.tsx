@@ -340,9 +340,7 @@ export default function App() {
   const sessionRef = useRef<any>(null);
   const isLiveRef = useRef<boolean>(false);
   const transcriptsRef = useRef<Transcript[]>([]);
-  const recognitionRef = useRef<any>(null); 
-  const ttsBufferRef = useRef<string>(""); // 用於緩存尚未成句的文字片段
-  const lastSpokenIndexRef = useRef<number>(-1); // 追蹤最後朗讀的 Transcript 索引
+  const recognitionRef = useRef<any>(null); // 新增：Web Speech Recognition 引用
 
 
   useEffect(() => {
@@ -1316,31 +1314,6 @@ export default function App() {
     nextPlayTimeRef.current = 0;
   };
 
-  const speakText = (text: string) => {
-    if (!('speechSynthesis' in window)) return;
-    // 檢查音訊輸出設定
-    if (!isAudioOutputEnabledRef.current || audioOutputMode === 'None') return;
-    
-    const isSelf = isRecordingRef.current;
-    if (audioOutputMode === 'Myself' && !isSelf) return;
-    if (audioOutputMode === 'Others' && isSelf) return;
-    if (audioOutputMode === 'None') return;
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = clientLangRef.current;
-    utterance.rate = 1.1; // 稍微加快語速以提升節奏感
-    
-    const voices = window.speechSynthesis.getVoices();
-    // 優先尋找與目標語言完全匹配或語系匹配的音色
-    const targetLangBase = clientLangRef.current.split('-')[0];
-    const voice = voices.find(v => v.lang === clientLangRef.current) || 
-                  voices.find(v => v.lang.startsWith(targetLangBase)) || 
-                  voices[0];
-    
-    if (voice) utterance.voice = voice;
-    window.speechSynthesis.speak(utterance);
-  };
-
   const setupSpeechRecognition = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       console.warn("Speech recognition not supported in this browser.");
@@ -1554,7 +1527,10 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       sessionRef.current = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
-          responseModalities: [Modality.TEXT], // 切換為純文字模式以降低延遲
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
+          },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           systemInstruction: `${systemInstructionContent}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。`
@@ -1636,15 +1612,11 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             if (parts) {
               let textContent = "";
               for (const part of parts) {
-                if (part.text) {
-                  const translatedChunk = convertToTwIfNeeded(part.text);
-                  textContent += translatedChunk;
-                  
-                  // 極速朗讀邏輯：一旦偵測到子句結束 (標點符號)，立即觸發本地 TTS
-                  ttsBufferRef.current += translatedChunk;
-                  if (/[。，？！,.?!]/.test(ttsBufferRef.current)) {
-                    speakText(ttsBufferRef.current);
-                    ttsBufferRef.current = ""; // 朗讀後清空緩衝
+                if (part.text) textContent += convertToTwIfNeeded(part.text);
+                if (part.inlineData?.data && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
+                  const isSelf = isRecording; 
+                  if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
+                    playAudioChunk(part.inlineData.data);
                   }
                 }
               }
