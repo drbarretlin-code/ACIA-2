@@ -1422,7 +1422,7 @@ export default function App() {
 
       // 關鍵修正：在發起連線前就準備好接收狀態
       isLiveRef.current = true;
-      setIsLive(true);
+      setIsRecording(true);
 
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
@@ -1447,9 +1447,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           temperature: 0.1,
           topP: 0.95,
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } },
-            // 恢復視覺回饋的關鍵：開啟輸入轉錄
-            inputTranscription: {} 
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
           },
           systemInstruction: { parts: [{ text: systemInstruction }] }
         },
@@ -1464,24 +1462,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           onmessage: (message: any) => {
             lastMessageTimeRef.current = Date.now();
             
-            // 處理模型回傳的內容（包含 inputTranscription 文字）
-            if (message.serverContent?.inputTranscription?.text || message.serverContent?.modelTurn?.parts) {
-              console.log("Received content:", JSON.stringify(message.serverContent, null, 2));
-              
-              // 如果有收到聽到的文字，嘗試將其推送到 UI
-              const capturedText = message.serverContent?.inputTranscription?.text;
-              if (capturedText && isLiveRef.current) {
-                const convertedText = convertToTwIfNeeded(capturedText);
-                addTranscript({
-                  original: convertedText,
-                  translated: "……（語音翻譯中）", // 雖然 Alpha 模式不回傳翻譯文字，但至少讓使用者看到已錄音
-                  sourceLang: localLangRef.current,
-                  targetLang: clientLangRef.current,
-                  isFinal: message.serverContent?.inputTranscription?.isFinal || false
-                });
-              }
-            }
-
+            // 將工具函式移至最上方以避免提升問題 (Hoisting)
             const convertToTwIfNeeded = (text: string) => {
               if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
                 return s2tConverter(text);
@@ -1506,6 +1487,11 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               
               return filtered;
             };
+
+            // 處理模型回傳的診斷內容
+            if (message.serverContent?.inputTranscription?.text || message.serverContent?.modelTurn?.parts) {
+              console.log("Received content:", JSON.stringify(message.serverContent, null, 2));
+            }
 
             // 1. 處理使用者的語音轉文字 (inputTranscription)
             // 僅處理使用者輸入，避免將 AI 的輸出誤判為輸入
