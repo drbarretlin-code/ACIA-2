@@ -2835,8 +2835,10 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
               </div>
             </div>
           </div>
+        </div>
 
         {/* Onboarding Modal */}
+
 
         {showOnboarding && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
