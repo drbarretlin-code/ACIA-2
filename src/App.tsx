@@ -1429,8 +1429,10 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
                 // Buffer minimum 2048 samples (approx 128ms) to prevent sending too many tiny WebSocket messages
                 if (audioBuffer.length >= 2048) {
                   const pcm16 = new Int16Array(audioBuffer.length);
-                  for (let i = 0; i < audioBuffer.length; i++) {
-                    pcm16[i] = Math.max(-1, Math.min(1, audioBuffer[i])) * 32767;
+                  if (!isNoiseShieldActiveRef.current) {
+                    for (let i = 0; i < audioBuffer.length; i++) {
+                      pcm16[i] = Math.max(-1, Math.min(1, audioBuffer[i])) * 32767;
+                    }
                   }
                   const buffer = new Uint8Array(pcm16.buffer);
                   let binary = '';
@@ -1439,7 +1441,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
                   }
                   const base64 = btoa(binary);
 
-                  if (sessionRef.current && !isNoiseShieldActiveRef.current) {
+                  if (sessionRef.current) {
                     sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
                   }
                   audioBuffer = [];
