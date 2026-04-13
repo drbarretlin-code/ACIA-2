@@ -386,12 +386,15 @@ export default function App() {
   }, [userApiKey]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     if (isRecording) {
       startLiveSession();
+    } else {
+      stopLiveSession();
     }
-    
+  }, [isRecording, userApiKey]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
     if (isRecording) {
       interval = setInterval(() => {
         setSessionSeconds(prev => {
@@ -1455,6 +1458,8 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
           },
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
           systemInstruction: { parts: [{ text: systemInstruction }] }
         },
         callbacks: {
@@ -1494,13 +1499,13 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             };
 
             // 處理模型回傳的診斷內容
-            if (message.serverContent?.inputAudioTranscription?.text || message.serverContent?.modelTurn?.parts) {
+            if (message.serverContent?.inputTranscription?.text || message.serverContent?.modelTurn?.parts) {
               console.log("Received content:", JSON.stringify(message.serverContent, null, 2));
             }
 
-            // 1. 處理使用者的語音轉文字 (inputAudioTranscription)
+            // 1. 處理使用者的語音轉文字 (inputTranscription)
             // 僅處理使用者輸入，避免將 AI 的輸出誤判為輸入
-            const inTranscript = message.serverContent?.inputAudioTranscription;
+            const inTranscript = message.serverContent?.inputTranscription;
             if (inTranscript?.text) {
               let cleanedText = filterUnsupportedScripts(inTranscript.text);
               
