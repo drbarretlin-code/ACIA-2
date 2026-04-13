@@ -350,6 +350,31 @@ export default function App() {
   
   useEffect(() => { voiceEngineRef.current = voiceEngine; }, [voiceEngine]);
 
+  // 工具函數：繁簡轉換與腳本篩選，提升至元件頂層防止 ReferenceError
+  const convertToTwIfNeeded = useCallback((text: string) => {
+    if (!text) return text;
+    if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
+      return s2tConverter(text);
+    }
+    return text;
+  }, [localLang, clientLang]);
+
+  const filterUnsupportedScripts = useCallback((text: string) => {
+    if (!text) return text;
+    const langs = [localLang, clientLang];
+    const hasKorean = langs.some(l => l.startsWith('ko'));
+    const hasJapanese = langs.some(l => l.startsWith('ja'));
+    const hasChinese = langs.some(l => l.startsWith('zh'));
+
+    let processed = text;
+    if (!hasKorean) processed = processed.replace(/[\uac00-\ud7af\u1100-\u11ff\u3130-\u318f\ua960-\ua97f\ud7b0-\ud7ff]/g, '');
+    if (!hasJapanese) processed = processed.replace(/[\u3040-\u309f\u30a0-\u30ff]/g, '');
+    if (!hasChinese) processed = processed.replace(/[\u4e00-\u9fa5]/g, '');
+    
+    return processed;
+  }, [localLang, clientLang]);
+
+
 
   useEffect(() => {
     transcriptsRef.current = transcripts;
@@ -521,6 +546,10 @@ export default function App() {
         // So we just write it once.
         
         const saveToFirestore = async () => {
+          if (!auth.currentUser) {
+            console.warn("Skip Firestore save: User not authenticated.");
+            return;
+          }
           try {
             // 更新本地 ID，確保與 Firestore 的同步一致性
             setTranscripts(prev => prev.map(t => t.id === lastTranscript.id ? transcriptToSave : t));
@@ -1595,29 +1624,8 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             console.log("[Diagnostic] Live API onmessage received:", JSON.stringify(message).substring(0, 500));
             lastMessageTimeRef.current = Date.now();
             
-            const convertToTwIfNeeded = (text: string) => {
-              if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
-                return s2tConverter(text);
-              }
-              return text;
-            };
+            // 移除了內部的 convertToTwIfNeeded 與 filterUnsupportedScripts 宣告，改用元件頂層的 useCallback 版本
 
-            const filterUnsupportedScripts = (text: string) => {
-              if (!text) return text;
-              const langs = [localLangRef.current, clientLangRef.current];
-              const hasKorean = langs.some(l => l.startsWith('ko'));
-              const hasJapanese = langs.some(l => l.startsWith('ja'));
-              const hasChinese = langs.some(l => l.startsWith('zh'));
-              const hasThai = langs.some(l => l.startsWith('th'));
-              
-              let filtered = text;
-              if (!hasKorean) filtered = filtered.replace(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g, '');
-              if (!hasJapanese) filtered = filtered.replace(/[\u3040-\u309F\u30A0-\u30FF]/g, '');
-              if (!hasThai) filtered = filtered.replace(/[\u0E00-\u0E7F]/g, '');
-              if (!hasChinese && !hasJapanese) filtered = filtered.replace(/[\u4E00-\u9FFF]/g, '');
-              
-              return filtered;
-            };
 
             const inTranscript = message.serverContent?.inputTranscription;
             if (inTranscript?.text) {
@@ -1661,7 +1669,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               for (const part of parts) {
                 // 如果是高品質模式且有音訊資料，則播放雲端音訊
                 if (part.inlineData?.data && voiceEngineRef.current === 'ai' && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
-                  const isSelf = isRecording; 
+                  const isSelf = isRecordingRef.current; 
                   if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
                     playAudioChunk(part.inlineData.data);
                   }
@@ -1673,7 +1681,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                   
                   // 極速模式朗讀邏輯
                   if (voiceEngineRef.current === 'local') {
-                    const targetLang = isRecording ? clientLangRef.current : localLangRef.current;
+                    const targetLang = isRecordingRef.current ? clientLangRef.current : localLangRef.current;
                     ttsBufferRef.current += translatedChunk;
                     
                     // 重置超時定時器：如果 2 秒沒新文字，強制朗讀
@@ -1755,7 +1763,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               console.log("[Diagnostic] Live API turnComplete received");
               // 對話回合結束時，清空所有剩餘的本地 TTS 緩衝
               if (voiceEngineRef.current === 'local' && ttsBufferRef.current.trim()) {
-                const targetLang = isRecording ? clientLangRef.current : localLangRef.current;
+                const targetLang = isRecordingRef.current ? clientLangRef.current : localLangRef.current;
                 speakText(ttsBufferRef.current, targetLang);
                 ttsBufferRef.current = "";
                 if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
