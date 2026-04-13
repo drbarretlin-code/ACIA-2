@@ -311,6 +311,23 @@ export default function App() {
     };
   }, [auth.currentUser]);
 
+  useEffect(() => {
+    if (userApiKey) {
+      const diagnoseModels = async () => {
+        try {
+          const ai = new GoogleGenAI({ apiKey: userApiKey, apiVersion: 'v1beta' });
+          const modelsResult: any = await ai.models.list();
+          console.log("--- BidiGenerateContent Diagnostic: Available Models ---");
+          console.log(modelsResult);
+          console.log("---------------------------------------------------------");
+        } catch (e) {
+          console.warn("Diagnostic failed (possibly free tier restriction):", e);
+        }
+      };
+      diagnoseModels();
+    }
+  }, [userApiKey]);
+
   // Initialize Auth-based Room Join logic ONLY after handleJoinRoom is defined later
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -1360,7 +1377,7 @@ export default function App() {
 
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
-        apiVersion: 'v1alpha'
+        apiVersion: 'v1beta'
       });
 
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
@@ -1381,7 +1398,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       const newSession = await ai.live.connect({
-        model: "gemini-live-2.5-flash-preview",
+        model: "gemini-2.0-flash-exp",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
