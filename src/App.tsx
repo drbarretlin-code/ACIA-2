@@ -1417,10 +1417,10 @@ export default function App() {
 
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
-        apiVersion: 'v1beta'
+        apiVersion: 'v1alpha'
       });
 
-      console.log("--- Gemini Live Engine: Version 2026-04-13-13-35 (Pre-warmed-Stable) ---");
+      console.log("--- Gemini Live Engine: Version 2026-04-13-13-43 (Alpha-Pure-Audio) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
@@ -1430,12 +1430,11 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
       updateApiUsage('request');
 
-      // 2. [Direct Connection] 當一切就緒後才發起連線
-      console.warn("[Diagnostic] Audio Ready. Attempting instant ai.live.connect...");
+      console.warn("[Diagnostic] Audio Ready. Attempting instant ai.live.connect (Alpha Protocol)...");
       const newSession = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
-          responseModalities: ["audio", "text"] as any,
+          responseModalities: ["audio"] as any,
           temperature: 0.1,
           topP: 0.95,
           speechConfig: {
