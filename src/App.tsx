@@ -1375,32 +1375,60 @@ export default function App() {
     if (audioOutputMode === 'Others' && isSelf) return;
     if (audioOutputMode === 'None') return;
 
-    // 修復引擎掛死問題：強制重置
-    try {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.resume();
-    } catch (e) {}
-
+    // 取得目標語言
     const targetLang = lang || clientLangRef.current;
+    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = targetLang;
     utterance.rate = 1.1; 
-    
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
     // 確保音色清單刷新
     let voices = window.speechSynthesis.getVoices();
-    if (!voices.length) {
-      // 某些瀏覽器需要等待 voiceschanged
-      console.warn("SpeechSynthesis voices not yet ready.");
+    
+    // 語音選擇邏輯優化
+    const findVoice = () => {
+      // 1. 精確匹配 (例如 zh-TW)
+      let voice = voices.find(v => v.lang === targetLang);
+      if (voice) return voice;
+      
+      // 2. 基礎語言匹配 (例如 zh)
+      const baseLang = targetLang.split('-')[0];
+      voice = voices.find(v => v.lang.startsWith(baseLang));
+      if (voice) return voice;
+      
+      // 3. 特殊回退：如果是 zh-TW 但沒找到，嘗試搜尋包含 "Chinese" 或 "Taiwan" 或 "Hong Kong" 的
+      if (baseLang === 'zh') {
+        const keywords = ['Chinese', 'Taiwan', 'Hong Kong', 'Mandarin', 'Cantonese'];
+        voice = voices.find(v => keywords.some(k => v.name.includes(k)));
+        if (voice) return voice;
+      }
+      
+      return voices[0];
+    };
+
+    const selectedVoice = findVoice();
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      console.log(`[TTS] Speaking with voice: ${selectedVoice.name} (${selectedVoice.lang})`);
     }
-    
-    const targetLangBase = targetLang.split('-')[0];
-    const voice = voices.find(v => v.lang === targetLang) || 
-                  voices.find(v => v.lang.startsWith(targetLangBase)) || 
-                  voices[0];
-    
-    if (voice) utterance.voice = voice;
-    window.speechSynthesis.speak(utterance);
+
+    // 錯誤處理與事件監測
+    utterance.onerror = (event) => {
+      console.error(`[TTS] Error speaking text: ${event.error}`, event);
+    };
+
+    // 執行朗讀
+    try {
+      // 這裡採用插隊模式以保證「極速」體驗，如果正在朗讀則取消之前的
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.error("[TTS] Failed to execute speak():", e);
+    }
   };
+
 
   const setupSpeechRecognition = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -2630,93 +2658,93 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             </div>
           </div>
 
-          {/* 輸出模式控制 */}
-          <div className="flex items-center justify-end gap-2 px-1 relative group">
-            <div className="flex items-center">
-              <button 
-                className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 z-10"
-                title="語音輸出設定"
-                onClick={() => {
-                  setShowAudioSettings(!showAudioSettings);
-                  const nextEnabled = !isAudioOutputEnabled;
-                  setIsAudioOutputEnabled(nextEnabled);
-                  if (!nextEnabled) {
-                    setAudioOutputMode('None');
-                  } else if (audioOutputMode === 'None') {
-                    setAudioOutputMode('ALL');
-                  }
-                  if (nextEnabled && playbackContextRef.current?.state === 'suspended') {
-                    playbackContextRef.current.resume();
-                  }
-                }}
-              >
-                {isAudioOutputEnabled ? (
-                  <svg className="w-5 h-5 text-white animate-[pulse_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5 text-white/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                    <line x1="23" y1="1" x2="1" y2="23"></line>
-                  </svg>
-                )}
-              </button>
-              
-              <div className={cn(
-                "absolute right-5 transition-all duration-300 translate-x-4 flex items-center bg-white dark:bg-slate-800 shadow-xl rounded-full border border-slate-200 dark:border-slate-700 pr-6 pl-2 py-1 gap-1 z-0",
-                showAudioSettings ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-              )}>
-                {(['None', 'Myself', 'ALL', 'Others'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => {
-                      setAudioOutputMode(mode);
-                      setIsAudioOutputEnabled(mode !== 'None');
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 whitespace-nowrap",
-                      audioOutputMode === mode
-                        ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-sm"
-                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                    )}
-                  >
-                    {mode === 'None' ? '靜音' : mode === 'Myself' ? '僅自己' : mode === 'ALL' ? '全部' : '僅他人'}
-                  </button>
-                ))}
-              </div>
+            <div className="flex items-center gap-1.5 ml-2 border-l border-slate-200 dark:border-slate-700 pl-2">
+              <div className="relative">
+                <button 
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110",
+                    isAudioOutputEnabled 
+                      ? "bg-gradient-to-tr from-blue-500 to-purple-500 text-white shadow-sm" 
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-400"
+                  )}
+                  title="語音輸出設定"
+                  onClick={() => setShowAudioSettings(!showAudioSettings)}
+                >
+                  {isAudioOutputEnabled ? (
+                    <svg className="w-4 h-4 animate-[pulse_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <line x1="23" y1="1" x2="1" y2="23"></line>
+                    </svg>
+                  )}
+                </button>
 
-              {/* 語音引擎切換 (極速 vs 高品質) */}
-              <div className={cn(
-                "absolute right-5 bottom-full mb-2 transition-all duration-300 translate-x-4 flex items-center bg-white dark:bg-slate-800 shadow-xl rounded-full border border-slate-200 dark:border-slate-700 p-1 z-10",
-                showAudioSettings ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-              )}>
-                {(['local', 'ai'] as const).map((eng) => (
-                  <button
-                    key={eng}
-                    onClick={() => {
-                      setVoiceEngine(eng);
-                      localStorage.setItem('voice_engine', eng);
-                      if (eng === 'local' && 'speechSynthesis' in window) {
-                        const u = new SpeechSynthesisUtterance("");
-                        window.speechSynthesis.speak(u);
-                      }
-                    }}
-                    className={cn(
-                      "px-3 py-1 text-[10px] font-bold rounded-full transition-all flex items-center gap-1",
-                      voiceEngine === eng 
-                        ? (eng === 'local' ? "bg-amber-500 text-white" : "bg-blue-600 text-white")
-                        : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
-                    )}
-                  >
-                    {eng === 'local' ? <Zap className="w-3 h-3" /> : <Mic2 className="w-3 h-3" />}
-                    {eng === 'local' ? '極速模式' : '高品質'}
-                  </button>
-                ))}
+                {/* 展開的設定選單 */}
+                {showAudioSettings && (
+                  <div className="absolute bottom-full right-0 mb-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-3 flex flex-col gap-3 min-w-[200px] z-[100] animate-in fade-in slide-in-from-bottom-2">
+                    {/* 輸出模式 */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 px-1">輸出方式</span>
+                      <div className="flex flex-wrap gap-1">
+                        {(['None', 'Myself', 'ALL', 'Others'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            onClick={() => {
+                              setAudioOutputMode(mode);
+                              setIsAudioOutputEnabled(mode !== 'None');
+                            }}
+                            className={cn(
+                              "px-2 py-1 text-[10px] font-medium rounded-lg transition-all",
+                              audioOutputMode === mode
+                                ? "bg-blue-600 text-white shadow-sm"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                            )}
+                          >
+                            {mode === 'None' ? '靜音' : mode === 'Myself' ? '僅自己' : mode === 'ALL' ? '全部' : '僅他人'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 引擎切換 */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 px-1">語音引擎</span>
+                      <div className="flex gap-1">
+                        {(['local', 'ai'] as const).map((eng) => (
+                          <button
+                            key={eng}
+                            onClick={() => {
+                              setVoiceEngine(eng);
+                              localStorage.setItem('voice_engine', eng);
+                              if (eng === 'local' && 'speechSynthesis' in window) {
+                                // 預啟動
+                                const u = new SpeechSynthesisUtterance("");
+                                window.speechSynthesis.speak(u);
+                              }
+                            }}
+                            className={cn(
+                              "flex-1 px-2 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1",
+                              voiceEngine === eng 
+                                ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200"
+                            )}
+                          >
+                            {eng === 'local' ? <Zap className="w-3 h-3" /> : <Mic2 className="w-3 h-3" />}
+                            {eng === 'local' ? '極速模式' : '高品質'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+
         </div>
 
         {/* 錯誤訊息提示 */}
