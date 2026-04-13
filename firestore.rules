@@ -81,7 +81,7 @@ service cloud.firestore {
 
     function isValidTranscript(data) {
       return hasRequiredFields(['original', 'translated', 'isFinal', 'timestamp', 'speakerId']) &&
-             hasOnlyAllowedFields(['original', 'translated', 'isFinal', 'sourceLang', 'targetLang', 'timestamp', 'speakerId', 'speakerName']) &&
+             hasOnlyAllowedFields(['original', 'translated', 'isFinal', 'sourceLang', 'targetLang', 'timestamp', 'speakerId', 'speakerName', 'createdAt']) &&
              data.original is string && data.original.size() < 5000 &&
              data.translated is string && data.translated.size() < 5000 &&
              data.isFinal is bool &&

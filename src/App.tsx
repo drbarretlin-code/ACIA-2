@@ -285,12 +285,10 @@ export default function App() {
   
   // 輸出模式控制
   const [isAudioOutputEnabled, setIsAudioOutputEnabled] = useState(() => {
-    const mode = localStorage.getItem('audio_output_mode');
-    if (mode === 'None') return false;
     return localStorage.getItem('audio_output') !== 'false';
   });
-  const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'None');
-  const [voiceEngine, setVoiceEngine] = useState<'local' | 'ai'>(() => (localStorage.getItem('voice_engine') as 'local' | 'ai') || 'ai'); // 預設改回 'ai' 以保證初次穩定性
+  const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'ALL');
+  const [voiceEngine, setVoiceEngine] = useState<'local' | 'ai'>(() => (localStorage.getItem('voice_engine') as 'local' | 'ai') || 'ai');
 
 
   // Refs for stable access in async handlers (Socket/Gemini)
@@ -325,6 +323,24 @@ export default function App() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [auth.currentUser]);
+
+  // 為本地 TTS 預先載入語音清單
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length > 0) {
+          console.log(`[TTS] Voices loaded: ${voices.length} available.`);
+        }
+      };
+      
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+      return () => {
+        window.speechSynthesis.onvoiceschanged = null;
+      };
+    }
+  }, []);
 
   // Initialize Auth-based Room Join logic ONLY after handleJoinRoom is defined later
   
@@ -1363,17 +1379,86 @@ export default function App() {
     nextPlayTimeRef.current = 0;
   };
 
-  const speakText = (text: string, lang?: string) => {
+  const speakText = (text: string, lang?: string, retryCount = 0) => {
     if (!('speechSynthesis' in window)) return;
     if (!text.trim()) return;
     
     // 檢查音訊輸出設定
-    if (!isAudioOutputEnabledRef.current || audioOutputMode === 'None') return;
+    if (!isAudioOutputEnabledRef.current || audioOutputMode === 'None') {
+      console.log(`[TTS] Skipping: output disabled or mode is ${audioOutputMode}`);
+      return;
+    }
     
     const isSelf = isRecordingRef.current;
-    if (audioOutputMode === 'Myself' && !isSelf) return;
-    if (audioOutputMode === 'Others' && isSelf) return;
-    if (audioOutputMode === 'None') return;
+    if (audioOutputMode === 'Myself' && !isSelf) {
+      console.log(`[TTS] Skipping: mode is Myself but source is Others`);
+      return;
+    }
+    if (audioOutputMode === 'Others' && isSelf) {
+      console.log(`[TTS] Skipping: mode is Others but source is Myself`);
+      return;
+    }
+
+    // 取得目標語言
+    const targetLang = lang || clientLangRef.current;
+    
+    // 取得語音清單
+    let voices = window.speechSynthesis.getVoices();
+    
+    // 如果清單為空且尚未重試過，則等待一小段時間後重試
+    if (voices.length === 0 && retryCount < 2) {
+      console.warn(`[TTS] Voice list empty, retrying... (${retryCount + 1})`);
+      setTimeout(() => speakText(text, lang, retryCount + 1), 100);
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = targetLang;
+    utterance.rate = 1.1; 
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    // 語音選擇邏輯優化
+    const findVoice = () => {
+      if (voices.length === 0) return null;
+      // 1. 精確匹配 (例如 zh-TW)
+      let voice = voices.find(v => v.lang === targetLang);
+      if (voice) return voice;
+      
+      // 2. 基礎語言匹配 (例如 zh)
+      const baseLang = targetLang.split('-')[0];
+      voice = voices.find(v => v.lang.startsWith(baseLang));
+      if (voice) return voice;
+      
+      // 3. 特殊回退：搜尋關鍵字
+      if (baseLang === 'zh') {
+        const keywords = ['Chinese', 'Taiwan', 'Hong Kong', 'Mandarin', 'Cantonese'];
+        voice = voices.find(v => keywords.some(k => v.name.includes(k)));
+        if (voice) return voice;
+      }
+      
+      return voices[0];
+    };
+
+    const selectedVoice = findVoice();
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      console.log(`[TTS] Speaking with voice: ${selectedVoice.name} (${selectedVoice.lang})`);
+    } else {
+      console.warn(`[TTS] No suitable voice found for ${targetLang}, using default browser voice.`);
+    }
+
+    utterance.onerror = (event) => {
+      console.error(`[TTS] Error speaking text: ${event.error}`, event);
+    };
+
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.error("[TTS] Failed to execute speak():", e);
+    }
+  };
 
     // 取得目標語言
     const targetLang = lang || clientLangRef.current;
