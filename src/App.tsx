@@ -1004,12 +1004,12 @@ export default function App() {
 
     setInputText('');
     setIsTranslatingText(true);
-    setIsNoiseShieldActive(true);
+    // 移除 setIsNoiseShieldActive(true/false) 以避免硬切換音訊流造成的 WebSocket 不穩定
 
     try {
-      // 1. 優先保險路徑 (零配額限制)：Google 免費線上翻譯接口 (設計模式與 Google Translate 一致)
+      // 1. 優先路徑 (零配額限制)：Google 免費線上翻譯接口 (安全性與容量最佳)
       try {
-        console.log("[handleSendText] Path 4: Using Free Google Translate (Primary)");
+        console.log("[handleSendText] Path: Using Free Translation Service (Isolated)");
         const freeResult = await translateTextFree(
           currentInput,
           sourceId,
@@ -1020,31 +1020,12 @@ export default function App() {
           t.id === msgId ? { ...t, translated: freeResult, isTranslating: false } : t
         ));
         setIsTranslatingText(false);
-        setIsNoiseShieldActive(false);
         return;
       } catch (freeErr: any) {
-        console.warn("[handleSendText] Path 4 failed. Falling back to Path 1 (Live Session)...", freeErr.message);
+        console.warn("[handleSendText] Isolated path failed. Falling back to REST...", freeErr.message);
       }
 
-      // 2. 二級路徑：若綠音正在進行，嘗試透過 WebSocket 發送（零配額消耗）
-      if (isRecording && sessionRef.current) {
-        const session = sessionRef.current as any;
-        const textMessage = { parts: [{ text: currentInput }] };
-        const candidates = ['send', 'sendClientContent', 'sendMessage', 'sendInput', 'sendContent'];
-        const foundMethod = candidates.find(m => typeof session[m] === 'function');
-
-        if (foundMethod) {
-          try {
-            console.log(`[handleSendText] Path 1: Using session.${foundMethod}() backup`);
-            session[foundMethod](textMessage);
-            // 注意：Path 1 是非同步回傳，UI 可能稍後由 Socket 事件觸發
-            // 但為了解決「文字不出現」問題，我們維持「正在翻譯」狀態
-            // 或者這裡暫時不做 Return，讓之後的路徑給出一個確定性結果
-          } catch (sendErr: any) {
-            console.warn(`[handleSendText] Path 1 failed to ${foundMethod}:`, sendErr.message);
-          }
-        }
-      }
+      // 2. 備援路徑：使用 REST API (不與運作中的 Live WebSocket 競爭)
 
       // 3. 三級路徑：使用 REST Streaming (Gemini)
       try {
@@ -1363,7 +1344,7 @@ export default function App() {
         apiVersion: 'v1beta'
       });
 
-      console.log("--- Gemini Live Engine: Version 2026-04-13-13-05 (Production-Stable) ---");
+      console.log("--- Gemini Live Engine: Version 2026-04-13-13-15 (Decoupled-Stable) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
@@ -1382,7 +1363,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       const newSession = await ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: "gemini-2.5-flash-native-audio-latest",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
