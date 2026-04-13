@@ -1409,13 +1409,8 @@ export default function App() {
         }
         const base64 = btoa(binary);
         
-        if (sessionRef.current && !isNoiseShieldActiveRef.current) {
-          try {
-            sessionRef.current.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: base64 } });
-          } catch (e) {
-            console.error("Audio streaming interrupted:", e);
-            sessionRef.current = undefined;
-          }
+        if (sessionRef.current) {
+          sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
         }
       };
 
