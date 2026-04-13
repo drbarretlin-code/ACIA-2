@@ -1358,16 +1358,14 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
 
       updateApiUsage('request');
 
-      sessionRef.current = await ai.live.connect({
-        model: "gemini-2.0-flash-exp",
+      const newSession = await ai.live.connect({
+        model: "gemini-2.0-flash",
         config: {
-          generationConfig: {
-            responseModalities: ["audio", "text"] as any,
-            temperature: 0.1,
-            topP: 0.95,
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
-            }
+          responseModalities: ["audio", "text"] as any,
+          temperature: 0.1,
+          topP: 0.95,
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
           },
           systemInstruction: { 
             parts: [{ 
@@ -1427,7 +1425,12 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
                 const base64 = btoa(binary);
 
                 if (sessionRef.current && !isNoiseShieldActiveRef.current) {
-                  sessionRef.current.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+                  try {
+                    sessionRef.current.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+                  } catch (e) {
+                    console.error("Audio streaming interrupted:", e);
+                    sessionRef.current = undefined; // 阻斷無窮迴圈的 WebSocket 錯誤洗版
+                  }
                 }
               };
 
