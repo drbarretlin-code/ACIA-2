@@ -1254,12 +1254,11 @@ export default function App() {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
-    if (sessionRef.current) {
-      try {
+
         sessionRef.current.close();
       } catch (e) {
         console.error("Error closing session:", e);
-      }
+       }
       sessionRef.current = null;
     }
 
@@ -1758,6 +1757,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       } catch (e) {
         console.error("Failed to sync recording state to Firestore:", e);
       }
+    }
     }
   };
 
