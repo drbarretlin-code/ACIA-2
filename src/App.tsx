@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield } from 'lucide-react';
+import { Mic, Mic2, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
 import { QRCodeSVG } from 'qrcode.react';
@@ -290,6 +290,8 @@ export default function App() {
     return localStorage.getItem('audio_output') !== 'false';
   });
   const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'None');
+  const [voiceEngine, setVoiceEngine] = useState<'local' | 'ai'>(() => (localStorage.getItem('voice_engine') as 'local' | 'ai') || 'ai'); // 預設改回 'ai' 以保證初次穩定性
+
 
   // Refs for stable access in async handlers (Socket/Gemini)
   const localLangRef = useRef(localLang);
@@ -340,7 +342,38 @@ export default function App() {
   const sessionRef = useRef<any>(null);
   const isLiveRef = useRef<boolean>(false);
   const transcriptsRef = useRef<Transcript[]>([]);
-  const recognitionRef = useRef<any>(null); // 新增：Web Speech Recognition 引用
+  const recognitionRef = useRef<any>(null); 
+  const ttsBufferRef = useRef<string>(""); // 用於緩存尚未成句的文字片段
+  const lastSpokenIndexRef = useRef<number>(-1); // 追蹤最後朗讀的 Transcript 索引
+  const ttsTimeoutRef = useRef<any>(null); // 超時強制朗讀定時器
+  const voiceEngineRef = useRef<'local' | 'ai'>(voiceEngine);
+  
+  useEffect(() => { voiceEngineRef.current = voiceEngine; }, [voiceEngine]);
+
+  // 工具函數：繁簡轉換與腳本篩選，提升至元件頂層防止 ReferenceError
+  const convertToTwIfNeeded = useCallback((text: string) => {
+    if (!text) return text;
+    if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
+      return s2tConverter(text);
+    }
+    return text;
+  }, [localLang, clientLang]);
+
+  const filterUnsupportedScripts = useCallback((text: string) => {
+    if (!text) return text;
+    const langs = [localLang, clientLang];
+    const hasKorean = langs.some(l => l.startsWith('ko'));
+    const hasJapanese = langs.some(l => l.startsWith('ja'));
+    const hasChinese = langs.some(l => l.startsWith('zh'));
+
+    let processed = text;
+    if (!hasKorean) processed = processed.replace(/[\uac00-\ud7af\u1100-\u11ff\u3130-\u318f\ua960-\ua97f\ud7b0-\ud7ff]/g, '');
+    if (!hasJapanese) processed = processed.replace(/[\u3040-\u309f\u30a0-\u30ff]/g, '');
+    if (!hasChinese) processed = processed.replace(/[\u4e00-\u9fa5]/g, '');
+    
+    return processed;
+  }, [localLang, clientLang]);
+
 
 
   useEffect(() => {
@@ -513,10 +546,21 @@ export default function App() {
         // So we just write it once.
         
         const saveToFirestore = async () => {
+          const authUser = auth.currentUser;
+          if (!authUser) {
+            console.warn("[Firestore] Skip save: No active auth session.");
+            return;
+          }
+          if (!roomId) {
+            console.error("[Firestore] Skip save: roomId is missing.");
+            return;
+          }
+          
           try {
             // 更新本地 ID，確保與 Firestore 的同步一致性
             setTranscripts(prev => prev.map(t => t.id === lastTranscript.id ? transcriptToSave : t));
             
+            console.log(`[Firestore] Attempting to save transcript ${transcriptToSave.id} to room ${roomId}`);
             const docRef = doc(db, 'rooms', roomId, 'transcripts', transcriptToSave.id);
             await setDoc(docRef, {
               original: transcriptToSave.original,
@@ -526,15 +570,20 @@ export default function App() {
               targetLang: transcriptToSave.targetLang,
               createdAt: transcriptToSave.createdAt, // 保存原始時間戳記以便排序穩定
               timestamp: serverTimestamp(),
-              speakerId: user.uid,
+              speakerId: authUser.uid,
               ...(userName ? { speakerName: userName } : {})
             }, { merge: true });
-            console.log('Transcript saved to Firestore successfully');
-            
-            // NOTE: Automatic scrolling logic has been moved to a dedicated useEffect 
-            // watching transcripts.length for more robust real-time behavior.
-          } catch (e) {
-            console.error("Failed to save transcript to Firestore", e);
+            console.log('[Firestore] Transcript saved successfully');
+          } catch (e: any) {
+            console.error("[Firestore] Permission denied or write error:", e.message, {
+              uid: authUser.uid,
+              roomId: roomId,
+              docId: transcriptToSave.id
+            });
+            // 如果是因為權限問題且非房主，這可能是預期的（規則限制）
+            if (e.code === 'permission-denied') {
+              console.warn("[Firestore] Note: Write permission denied. Ensure you are the room owner or rules allow guest writes.");
+            }
           }
         };
         saveToFirestore();
@@ -1254,11 +1303,12 @@ export default function App() {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
-
+    if (sessionRef.current) {
+      try {
         sessionRef.current.close();
       } catch (e) {
         console.error("Error closing session:", e);
-       }
+      }
       sessionRef.current = null;
     }
 
@@ -1311,6 +1361,45 @@ export default function App() {
     }
     
     nextPlayTimeRef.current = 0;
+  };
+
+  const speakText = (text: string, lang?: string) => {
+    if (!('speechSynthesis' in window)) return;
+    if (!text.trim()) return;
+    
+    // 檢查音訊輸出設定
+    if (!isAudioOutputEnabledRef.current || audioOutputMode === 'None') return;
+    
+    const isSelf = isRecordingRef.current;
+    if (audioOutputMode === 'Myself' && !isSelf) return;
+    if (audioOutputMode === 'Others' && isSelf) return;
+    if (audioOutputMode === 'None') return;
+
+    // 修復引擎掛死問題：強制重置
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+    } catch (e) {}
+
+    const targetLang = lang || clientLangRef.current;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = targetLang;
+    utterance.rate = 1.1; 
+    
+    // 確保音色清單刷新
+    let voices = window.speechSynthesis.getVoices();
+    if (!voices.length) {
+      // 某些瀏覽器需要等待 voiceschanged
+      console.warn("SpeechSynthesis voices not yet ready.");
+    }
+    
+    const targetLangBase = targetLang.split('-')[0];
+    const voice = voices.find(v => v.lang === targetLang) || 
+                  voices.find(v => v.lang.startsWith(targetLangBase)) || 
+                  voices[0];
+    
+    if (voice) utterance.voice = voice;
+    window.speechSynthesis.speak(utterance);
   };
 
   const setupSpeechRecognition = () => {
@@ -1526,7 +1615,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       sessionRef.current = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
-          responseModalities: [Modality.AUDIO],
+          responseModalities: [Modality.AUDIO], // 配合雲端穩定性，恢復音訊導向模式
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
           },
@@ -1547,29 +1636,8 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             console.log("[Diagnostic] Live API onmessage received:", JSON.stringify(message).substring(0, 500));
             lastMessageTimeRef.current = Date.now();
             
-            const convertToTwIfNeeded = (text: string) => {
-              if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
-                return s2tConverter(text);
-              }
-              return text;
-            };
+            // 移除了內部的 convertToTwIfNeeded 與 filterUnsupportedScripts 宣告，改用元件頂層的 useCallback 版本
 
-            const filterUnsupportedScripts = (text: string) => {
-              if (!text) return text;
-              const langs = [localLangRef.current, clientLangRef.current];
-              const hasKorean = langs.some(l => l.startsWith('ko'));
-              const hasJapanese = langs.some(l => l.startsWith('ja'));
-              const hasChinese = langs.some(l => l.startsWith('zh'));
-              const hasThai = langs.some(l => l.startsWith('th'));
-              
-              let filtered = text;
-              if (!hasKorean) filtered = filtered.replace(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g, '');
-              if (!hasJapanese) filtered = filtered.replace(/[\u3040-\u309F\u30A0-\u30FF]/g, '');
-              if (!hasThai) filtered = filtered.replace(/[\u0E00-\u0E7F]/g, '');
-              if (!hasChinese && !hasJapanese) filtered = filtered.replace(/[\u4E00-\u9FFF]/g, '');
-              
-              return filtered;
-            };
 
             const inTranscript = message.serverContent?.inputTranscription;
             if (inTranscript?.text) {
@@ -1611,11 +1679,38 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             if (parts) {
               let textContent = "";
               for (const part of parts) {
-                if (part.text) textContent += convertToTwIfNeeded(part.text);
-                if (part.inlineData?.data && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
-                  const isSelf = isRecording; 
+                // 如果是高品質模式且有音訊資料，則播放雲端音訊
+                if (part.inlineData?.data && voiceEngineRef.current === 'ai' && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
+                  const isSelf = isRecordingRef.current; 
                   if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
                     playAudioChunk(part.inlineData.data);
+                  }
+                }
+
+                if (part.text) {
+                  const translatedChunk = convertToTwIfNeeded(part.text);
+                  textContent += translatedChunk;
+                  
+                  // 極速模式朗讀邏輯
+                  if (voiceEngineRef.current === 'local') {
+                    const targetLang = isRecordingRef.current ? clientLangRef.current : localLangRef.current;
+                    ttsBufferRef.current += translatedChunk;
+                    
+                    // 重置超時定時器：如果 2 秒沒新文字，強制朗讀
+                    if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+                    ttsTimeoutRef.current = setTimeout(() => {
+                      if (ttsBufferRef.current.trim()) {
+                        speakText(ttsBufferRef.current, targetLang);
+                        ttsBufferRef.current = "";
+                      }
+                    }, 2000);
+
+                    // 標點符號觸發
+                    if (/[。，？！,.?!]/.test(ttsBufferRef.current)) {
+                      speakText(ttsBufferRef.current, targetLang);
+                      ttsBufferRef.current = "";
+                      if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+                    }
                   }
                 }
               }
@@ -1676,6 +1771,15 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                 }
                 return prev;
               });
+
+              console.log("[Diagnostic] Live API turnComplete received");
+              // 對話回合結束時，清空所有剩餘的本地 TTS 緩衝
+              if (voiceEngineRef.current === 'local' && ttsBufferRef.current.trim()) {
+                const targetLang = isRecordingRef.current ? clientLangRef.current : localLangRef.current;
+                speakText(ttsBufferRef.current, targetLang);
+                ttsBufferRef.current = "";
+                if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+              }
             }
 
             if (message.serverContent?.interrupted) {
@@ -1732,17 +1836,44 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
   const toggleRecording = async () => {
     console.trace("[Diagnostic] toggleRecording called");
     // 【解決 Chrome Web Audio Autoplay Policy 限制】
-    // 必須在使用者發生「實際點擊事件」的同一個 Call Stack 生命週期中立刻實例化或啟動 AudioContext
+    // 必須在使用者發生「實際點擊事件」的 Call Stack 中立刻實例化或啟動所有的 AudioContext
     try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      
+      // 1. 啟動錄音 Context
       if (!audioContextRef.current) {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
         audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
       }
-      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume();
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+
+      // 2. 啟動播放 Context (高品質 AI 模式使用)
+      if (!playbackContextRef.current) {
+        playbackContextRef.current = new AudioContextClass({ sampleRate: 24000 });
+      }
+      if (playbackContextRef.current.state === 'suspended') {
+        playbackContextRef.current.resume();
+      }
+
+      // 3. 解鎖 SpeechSynthesis (本地極速模式使用)
+      if ('speechSynthesis' in window) {
+        const unlockUtterance = new SpeechSynthesisUtterance("");
+        unlockUtterance.volume = 0;
+        window.speechSynthesis.speak(unlockUtterance);
+        window.speechSynthesis.resume();
       }
     } catch (e) {
-      console.warn("AudioContext init/resume failed during gesture:", e);
+      console.warn("[Gesture] Audio/TTS wakeup failed:", e);
+    }
+
+
+    // 啟動錄音時，如果處於靜音模式，提醒使用者或自動切換
+    if (audioOutputMode === 'None' || !isAudioOutputEnabled) {
+      setCustomAlert({ message: "目前處於靜音模式，已自動為您開啟語音朗讀。", type: 'alert' });
+      setIsAudioOutputEnabled(true);
+      setAudioOutputMode('ALL');
+      localStorage.setItem('audio_output_mode', 'ALL');
     }
 
     const newState = !isRecording;
@@ -1757,7 +1888,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       } catch (e) {
         console.error("Failed to sync recording state to Firestore:", e);
       }
-    }
     }
   };
 
@@ -2548,6 +2678,35 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     )}
                   >
                     {mode === 'None' ? '靜音' : mode === 'Myself' ? '僅自己' : mode === 'ALL' ? '全部' : '僅他人'}
+                  </button>
+                ))}
+              </div>
+
+              {/* 語音引擎切換 (極速 vs 高品質) */}
+              <div className={cn(
+                "absolute right-5 bottom-full mb-2 transition-all duration-300 translate-x-4 flex items-center bg-white dark:bg-slate-800 shadow-xl rounded-full border border-slate-200 dark:border-slate-700 p-1 z-10",
+                showAudioSettings ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+              )}>
+                {(['local', 'ai'] as const).map((eng) => (
+                  <button
+                    key={eng}
+                    onClick={() => {
+                      setVoiceEngine(eng);
+                      localStorage.setItem('voice_engine', eng);
+                      if (eng === 'local' && 'speechSynthesis' in window) {
+                        const u = new SpeechSynthesisUtterance("");
+                        window.speechSynthesis.speak(u);
+                      }
+                    }}
+                    className={cn(
+                      "px-3 py-1 text-[10px] font-bold rounded-full transition-all flex items-center gap-1",
+                      voiceEngine === eng 
+                        ? (eng === 'local' ? "bg-amber-500 text-white" : "bg-blue-600 text-white")
+                        : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    )}
+                  >
+                    {eng === 'local' ? <Zap className="w-3 h-3" /> : <Mic2 className="w-3 h-3" />}
+                    {eng === 'local' ? '極速模式' : '高品質'}
                   </button>
                 ))}
               </div>
