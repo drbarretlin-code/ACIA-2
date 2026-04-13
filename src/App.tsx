@@ -432,7 +432,7 @@ export default function App() {
       setShowTimePrompt(false);
     }
     return () => clearInterval(interval);
-  }, [isRecording, userApiKey]);
+  }, [isRecording, userApiKey, localLang, clientLang]);
 
   useEffect(() => {
     if (liveSessionDuration === 3600 || liveSessionDuration === 7200) {
@@ -1429,7 +1429,7 @@ export default function App() {
 
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
-        apiVersion: 'v1beta'
+        apiVersion: 'v1alpha'
       });
 
       console.log("--- Gemini Live Engine: Version 2026-04-13-14-41 (Double-Locked-Stable) ---");
@@ -1442,17 +1442,18 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
       updateApiUsage('request');
 
-      console.warn("[Diagnostic] Audio Ready. Attempting ai.live.connect (v1beta)...");
+      console.warn("[Diagnostic] Audio Ready. Attempting ai.live.connect (v1alpha)...");
       
       // 關鍵修正：不使用 await 阻塞後續邏輯，改用 then 鍊確保數據管道暢通
       ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: "gemini-2.0-flash-exp",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
           topP: 0.95,
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } },
+            inputTranscription: {} 
           },
           systemInstruction: { parts: [{ text: systemInstruction }] }
         },
@@ -1511,14 +1512,17 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               if (cleanedText) {
                 const processedText = convertToTwIfNeeded(cleanedText);
                 setTranscripts(prev => {
-                  const last = prev[prev.length - 1];
-                  // inputTranscription 是累積的，所以直接替換
-                  if (last && !last.isFinal) {
-                    // 如果原本是佔位符，就直接替換掉。如果是累積的，也直接替換，因為 inputTranscription 是累積的
-                    return prev.map((t, i) => i === prev.length - 1 ? { ...t, original: processedText } : t);
+                  // 找出最後一筆由本地端建立且尚未完成的紀錄
+                  const lastIndex = prev.length - 1;
+                  const last = prev[lastIndex];
+                  
+                  if (last && !last.isFinal && last.isLocal) {
+                    const newTranscripts = [...prev];
+                    newTranscripts[lastIndex] = { ...last, original: processedText };
+                    return newTranscripts;
                   } else {
                     return [...prev, {
-                      id: Date.now().toString(),
+                      id: "local-" + Date.now().toString(),
                       original: processedText,
                       translated: "",
                       isFinal: false,
@@ -1526,7 +1530,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                       sourceLang: "Auto",
                       targetLang: "Auto",
                       createdAt: Date.now(),
-                      isLocal: isRecording,
+                      isLocal: true,
                       ...(userName ? { speakerName: userName } : {})
                     }];
                   }
