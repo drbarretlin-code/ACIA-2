@@ -311,31 +311,6 @@ export default function App() {
     };
   }, [auth.currentUser]);
 
-  useEffect(() => {
-    if (userApiKey) {
-      const diagnoseModelsRaw = async () => {
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${userApiKey}`;
-          const response = await fetch(url);
-          const data = await response.json();
-          console.warn("--- BidiGenerateContent RAW Diagnostic ---");
-          if (data && data.models) {
-             const liveModelNames = data.models
-               .filter((m: any) => m.supportedGenerationMethods?.includes('bidiGenerateContent'))
-               .map((m: any) => m.name.replace('models/', ''));
-             console.warn("Supported Live Model Names:", liveModelNames.join(", "));
-          } else {
-             console.warn("Unexpected REST response (no models):", data);
-          }
-          console.warn("-------------------------------------------");
-        } catch (e) {
-          console.error("RAW DIAGNOSTIC FAILED:", e);
-        }
-      };
-      diagnoseModelsRaw();
-    }
-  }, [userApiKey]);
-
   // Initialize Auth-based Room Join logic ONLY after handleJoinRoom is defined later
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -1388,7 +1363,7 @@ export default function App() {
         apiVersion: 'v1beta'
       });
 
-      console.log("--- Gemini Live Engine: Version 2026-04-13-13-00 (Diagnostic-Mode) ---");
+      console.log("--- Gemini Live Engine: Version 2026-04-13-13-05 (Production-Stable) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
@@ -1407,7 +1382,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       const newSession = await ai.live.connect({
-        model: "gemini-3-flash-live-preview",
+        model: "gemini-3.1-flash-live-preview",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
