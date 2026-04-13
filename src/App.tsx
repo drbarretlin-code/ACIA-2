@@ -1381,7 +1381,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       const newSession = await ai.live.connect({
-        model: "gemini-2.5-flash",
+        model: "gemini-live-2.5-flash-preview",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
@@ -1648,13 +1648,20 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
             if (isLiveRef.current) {
               const wasLive = isLiveRef.current;
               stopLiveSession();
-              if (wasLive) {
+              
+              const isFatalError = event?.code === 1008 || event?.code === 1011 || event?.code === 400 || event?.code === 403 || event?.code === 404;
+              
+              if (wasLive && !isFatalError) {
                 // Prevent infinite tight loop if it closes immediately: Check if last successful connection was very recent
                 setTimeout(() => {
                   if (isRecording) {
                     startLiveSession();
                   }
                 }, 2000);
+              } else if (isFatalError && isRecording) {
+                 console.error("Fatal Google API Connection Error detected (e.g. Model Not Found). Halting auto-reconnect to prevent microphone loops.");
+                 setIsRecording(false);
+                 setCustomAlert({ message: `伺服器連線發生致命錯誤 (${event?.code})，已自動停止錄音。`, type: 'alert' });
               }
             }
           },
