@@ -1679,14 +1679,18 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       sessionRef.current = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
-          responseModalities: [Modality.AUDIO], // 配合雲端穩定性，恢復音訊導向模式
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
-          },
+          // 核心差異：極速模式回傳純文字供 speechSynthesis 朗讀；高品質模式回傳音訊由雲端渲染
+          responseModalities: voiceEngine === 'local' ? [Modality.TEXT] : [Modality.AUDIO],
+          ...(voiceEngine === 'ai' ? {
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
+            }
+          } : {}),
           inputAudioTranscription: {},
-          outputAudioTranscription: {},
+          ...(voiceEngine === 'ai' ? { outputAudioTranscription: {} } : {}),
           systemInstruction: `${systemInstructionContent}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。`
         },
+
         callbacks: {
           onopen: async () => {
             console.warn("[Diagnostic] Live API SOCKET OPENED!");
