@@ -1351,7 +1351,10 @@ export default function App() {
         };
       });
 
-      const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
+      const ai = new GoogleGenAI({ 
+        apiKey: effectiveApiKey,
+        httpOptions: { apiVersion: 'v1alpha' }
+      });
 
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
@@ -1371,7 +1374,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       sessionRef.current = await ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: "gemini-2.0-flash-exp",
         config: {
           generation_config: {
             response_modalities: ["audio", "text"],
@@ -1439,7 +1442,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
                 const base64 = btoa(binary);
 
                 if (sessionRef.current && !isNoiseShieldActiveRef.current) {
-                  sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+                  sessionRef.current.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: base64 } });
                 }
               };
 
