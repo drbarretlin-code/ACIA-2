@@ -1005,7 +1005,7 @@ export default function App() {
       id: msgId,
       original: currentInput,
       translated: "",
-      isFinal: false, // [FIX] Set to false so onmessage can append the translation
+      isFinal: true, // [FIX] Set to true so REST path can update it by ID safely
       isTranslating: true,
       sourceLang: sourceName,
       targetLang: targetName,
@@ -1021,10 +1021,9 @@ export default function App() {
     try {
       // 0. 特殊路徑：如果當前 Live 會話已建立，直接輸入到會話中以獲得語音回饋
       if (isLiveRef.current && sessionRef.current) {
-        console.log("[handleSendText] Path 0: Sending text to ACTIVE Live API Session for Audio Feedback");
+        console.log("[handleSendText] Path 0 (Dual-Track): Sending Voice to Live Session...");
         sessionRef.current.sendRealtimeInput([{ text: currentInput }]);
-        setIsTranslatingText(false);
-        return;
+        // Path 0 does NOT return; it falls through to Path 1 for TRANSCRIPTION visibility
       }
 
       // 1. 優先路徑 (零配額限制)：Google 免費線上翻譯接口 (安全性與容量最佳)
@@ -1163,11 +1162,14 @@ export default function App() {
   const lastTranscriptContent = transcripts[transcripts.length - 1]?.translated + transcripts[transcripts.length - 1]?.original;
   useEffect(() => {
     if (transcripts.length > 0 && isAtBottom) {
-      virtuosoRef.current?.scrollToIndex({
-        index: transcripts.length - 1,
-        align: 'end',
-        behavior: 'smooth'
+      const scrollHandler = requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({
+          index: transcripts.length - 1,
+          align: 'end',
+          behavior: 'smooth'
+        });
       });
+      return () => cancelAnimationFrame(scrollHandler);
     }
   }, [transcripts.length, lastTranscriptContent]);
 
@@ -2503,8 +2505,8 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 )}
                 followOutput="smooth"
                 alignToBottom
-                increaseViewportBy={300}
-                atBottomThreshold={60}
+                increaseViewportBy={1000}
+                atBottomThreshold={150}
                 atBottomStateChange={setIsAtBottom}
                 initialTopMostItemIndex={memoizedTranscripts.length > 0 ? memoizedTranscripts.length - 1 : 0}
               />
