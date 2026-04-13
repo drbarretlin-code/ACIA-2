@@ -93,10 +93,9 @@ service cloud.firestore {
     }
 
     function isValidConnection(data) {
-      return hasRequiredFields(['lastSeen', 'status']) &&
-             hasOnlyAllowedFields(['lastSeen', 'status', 'roomId', 'lastActive']) &&
-             data.lastSeen is timestamp &&
-             data.status is string &&
+      return hasRequiredFields(['lastActive']) &&
+             hasOnlyAllowedFields(['lastActive', 'roomId']) &&
+             data.lastActive is timestamp &&
              (!('roomId' in data) || (data.roomId is string && data.roomId.size() < 100));
     }
 
