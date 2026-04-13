@@ -1027,6 +1027,7 @@ export default function App() {
         console.log("[handleSendText] Path 0: Sending text to ACTIVE Live API Session for Audio Feedback");
         sessionRef.current.sendRealtimeInput([{ text: currentInput }]);
         setIsTranslatingText(false);
+        // setIsNoiseShieldActive(false); // [CLEANUP] Avoid unnecessary state churn
         return;
       }
 
@@ -1098,7 +1099,7 @@ export default function App() {
       ));
     } finally {
       setIsTranslatingText(false);
-      setIsNoiseShieldActive(false);
+      // setIsNoiseShieldActive(false); // [CLEANUP] Avoid unnecessary state churn
     }
   };
 
@@ -1427,6 +1428,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
         callbacks: {
           onopen: async () => {
             console.warn("[Diagnostic] Live API SOCKET OPENED!");
+            isLiveRef.current = true; // [CRITICAL FIX] Enable Path 0 and Stop triggers
             if (audioContextRef.current?.state === 'suspended') {
               await audioContextRef.current.resume();
             }
@@ -1611,6 +1613,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
   // 切換錄音狀態 (同步到 Firestore)
   const toggleRecording = async () => {
+    console.trace("[Diagnostic] toggleRecording called");
     // 【解決 Chrome Web Audio Autoplay Policy 限制】
     // 必須在使用者發生「實際點擊事件」的同一個 Call Stack 生命週期中立刻實例化或啟動 AudioContext
     try {
@@ -2548,7 +2551,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      if (inputText.trim() && isRecording && isNoiseShieldActive) {
+                      if (inputText.trim() && isRecording) {
                         handleSendText();
                       }
                     }
@@ -2557,9 +2560,9 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
 
                 <button
                   onClick={handleSendText}
-                  disabled={!inputText.trim() || !isRecording || !isNoiseShieldActive}
+                  disabled={!inputText.trim() || !isRecording}
                   className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-400 dark:disabled:bg-slate-700 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all shrink-0"
-                  title={!isRecording ? "請先開啟錄音功能" : !isNoiseShieldActive ? "請開啟自動感應靜音以發送文字" : ""}
+                  title={!isRecording ? "請先開啟錄音功能" : ""}
                 >
                   {isTranslatingText ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
