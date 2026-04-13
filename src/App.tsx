@@ -1344,37 +1344,27 @@ export default function App() {
         apiVersion: 'v1beta'
       });
 
-      console.log("--- Gemini Live Engine: Version 2026-04-13-13-15 (Decoupled-Stable) ---");
+      console.log("--- Gemini Live Engine: Version 2026-04-13-13-20 (Decoupled-Minimalist) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
       const systemInstruction = `You are a rapid real-time simultaneous interpreter.
 The two authorized languages are: ${localName} and ${clientName}.
-
-CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
-1. DO NOT wait for the speaker to finish. Start translating phrase-by-phrase as soon as the first 2-3 words provide context.
-2. If the user speaks ${localName}, translate to ${clientName} IMMEDIATELY.
-3. If the user speaks ${clientName}, translate to ${localName} IMMEDIATELY.
-4. OUTPUT ONLY THE TRANSLATED TEXT. Never add filler, greetings, or explanations.
-5. MANDATORY CHINESE: If Traditional Chinese (繁體中文) is involved, you MUST use it. NEVER use Simplified Chinese.
-6. NOISE ROBUSTNESS: Ignore background noise, music, or non-speech sounds. If input is fragmented, translate the fragments immediately.
-7. ACCURACY: Maintain original tone but prioritize speed. Do not over-deliberate.`;
+CRITICAL: Translate user's speech immediately without filler. Output only translated text.`;
 
       updateApiUsage('request');
 
       const newSession = await ai.live.connect({
-        model: "gemini-2.5-flash-native-audio-latest",
+        model: "gemini-3.1-flash-live-preview",
         config: {
-          responseModalities: ["audio", "text"] as any,
+          responseModalities: ["audio"] as any,
           temperature: 0.1,
           topP: 0.95,
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
           },
           systemInstruction: { 
-            parts: [{ 
-              text: `${systemInstruction}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。請確保翻譯結果與使用者的語音輸入保持同步且完整。`
-            }] 
+            parts: [{ text: systemInstruction }] 
           }
         },
         callbacks: {
