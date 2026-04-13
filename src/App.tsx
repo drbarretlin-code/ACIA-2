@@ -1354,8 +1354,9 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
       updateApiUsage('request');
 
+      console.warn("[Diagnostic] Attempting ai.live.connect with gemini-2.0-flash (most compatible fallback)...");
       const newSession = await ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: "gemini-2.0-flash-exp",
         config: {
           responseModalities: ["audio"] as any,
           temperature: 0.1,
@@ -1367,24 +1368,30 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             parts: [{ text: systemInstruction }] 
           }
         },
-        callbacks: {
           onopen: async () => {
-            try {
-              if (!audioContextRef.current || !mediaStreamRef.current) return;
+            console.warn("[Diagnostic] Live API CONNECTION ESTABLISHED (onopen fired)!");
+              console.warn("[Diagnostic] Inside onopen callback...");
+              if (!audioContextRef.current || !mediaStreamRef.current) {
+                console.error("[Diagnostic] Missing AudioContext or MediaStream in onopen!");
+                return;
+              }
               
               const audioCtx = audioContextRef.current;
               const stream = mediaStreamRef.current;
 
               try {
+                console.warn("[Diagnostic] Adding AudioWorklet module...");
                 await audioCtx.audioWorklet.addModule('/audio-processor.js');
+                console.warn("[Diagnostic] AudioWorklet module added successfully.");
               } catch (e) {
-                // 如果已經 addModule 過，可能會拋出錯誤，這裡忽略它
-                console.log("AudioWorklet module already added or error:", e);
+                console.error("[Diagnostic] AudioWorklet module error:", e);
               }
               
+              console.warn("[Diagnostic] Creating Audio Nodes...");
               const source = audioCtx.createMediaStreamSource(stream);
               sourceRef.current = source;
               const workletNode = new AudioWorkletNode(audioCtx, 'audio-processor');
+              console.warn("[Diagnostic] AudioWorkletNode created.");
               
               workletNode.port.onmessage = (e) => {
                 if (!isLiveRef.current) return;
