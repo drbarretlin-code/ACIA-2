@@ -241,7 +241,9 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_completed'));
   const virtuosoRef = useRef<any>(null);
 
-  const memoizedTranscripts = transcripts;
+  const memoizedTranscripts = useMemo(() => {
+    return [...transcripts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }, [transcripts]);
 
   const [shareSuccess, setShareSuccess] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
@@ -1005,7 +1007,7 @@ export default function App() {
       id: msgId,
       original: currentInput,
       translated: "",
-      isFinal: true, // [FIX] Set to true so REST path can update it by ID safely
+      isFinal: true,
       isTranslating: true,
       sourceLang: sourceName,
       targetLang: targetName,
@@ -1013,11 +1015,6 @@ export default function App() {
       isLocal: true,
       ...(userName ? { speakerName: userName } : {})
     }]);
-    
-    // [FORCE SCROLL] Ensure manual messages are immediately visible
-    setTimeout(() => {
-      virtuosoRef.current?.scrollToIndex({ index: 'last', align: 'end', behavior: 'auto' });
-    }, 50);
 
     setInputText('');
     setIsTranslatingText(true);
@@ -1043,11 +1040,6 @@ export default function App() {
         setTranscripts(prev => prev.map(t => 
           t.id === msgId ? { ...t, translated: freeResult, isTranslating: false } : t
         ));
-        
-        // [FORCE SCROLL] Ensure translation is visible after it arrives
-        setTimeout(() => {
-          virtuosoRef.current?.scrollToIndex({ index: 'last', align: 'end', behavior: 'smooth' });
-        }, 100);
         
         setIsTranslatingText(false);
         return;
@@ -1168,21 +1160,12 @@ export default function App() {
     };
   }, []);
 
-  // [高保真置底捲動控制]
-  // 每當轉譯紀錄增加，或最後一則訊息的內容有變動（Streaming 中）時，強制平滑置底
-  const lastTranscriptContent = transcripts[transcripts.length - 1]?.translated + transcripts[transcripts.length - 1]?.original;
+  // 清除資源
   useEffect(() => {
-    if (transcripts.length > 0 && isAtBottom) {
-      const scrollHandler = requestAnimationFrame(() => {
-        virtuosoRef.current?.scrollToIndex({
-          index: transcripts.length - 1,
-          align: 'end',
-          behavior: 'smooth'
-        });
-      });
-      return () => cancelAnimationFrame(scrollHandler);
-    }
-  }, [transcripts.length, lastTranscriptContent, isAtBottom]); // Added isAtBottom to deps for stability
+    return () => {
+      stopLiveSession();
+    };
+  }, []);
 
   const playAudioChunk = (base64Audio: string) => {
     if (!playbackContextRef.current) {
@@ -2514,10 +2497,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     <TranscriptItem key={t.id} t={t} />
                   </div>
                 )}
-                followOutput="smooth"
-                alignToBottom
                 increaseViewportBy={1000}
-                atBottomThreshold={300}
                 atBottomStateChange={setIsAtBottom}
                 initialTopMostItemIndex={memoizedTranscripts.length > 0 ? memoizedTranscripts.length - 1 : 0}
               />
