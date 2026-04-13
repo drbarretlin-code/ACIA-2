@@ -1151,6 +1151,7 @@ export default function App() {
     const audioCtx = playbackContextRef.current;
 
     if (audioCtx.state === 'suspended') {
+      console.warn("[Diagnostic] Playback Context suspended, resuming...");
       audioCtx.resume();
     }
 
@@ -1552,6 +1553,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                   textContent += convertToTwIfNeeded(part.text);
                 }
                 if (part.inlineData?.data && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
+                  console.log(`[Diagnostic] Receiving audio chunk: ${part.inlineData.data.length} bytes`);
                   const isSelf = isRecording; 
                   if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
                     playAudioChunk(part.inlineData.data);
