@@ -1401,13 +1401,13 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
               sourceRef.current = source;
               const workletNode = new AudioWorkletNode(audioCtx, 'audio-processor');
               
+              let audioBuffer: number[] = [];
               workletNode.port.onmessage = (e) => {
                 if (!isLiveRef.current) return;
                 const inputData = e.data;
                 const inputSampleRate = audioCtx.sampleRate;
                 const targetSampleRate = 16000;
                 
-                // Resample to 16000Hz if necessary
                 let resampledData = inputData;
                 if (inputSampleRate !== targetSampleRate) {
                   const ratio = inputSampleRate / targetSampleRate;
@@ -1422,19 +1422,27 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
                   }
                 }
 
-                const pcm16 = new Int16Array(resampledData.length);
                 for (let i = 0; i < resampledData.length; i++) {
-                  pcm16[i] = Math.max(-1, Math.min(1, resampledData[i])) * 32767;
+                  audioBuffer.push(resampledData[i]);
                 }
-                const buffer = new Uint8Array(pcm16.buffer);
-                let binary = '';
-                for (let i = 0; i < buffer.byteLength; i++) {
-                  binary += String.fromCharCode(buffer[i]);
-                }
-                const base64 = btoa(binary);
 
-                if (sessionRef.current && !isNoiseShieldActiveRef.current) {
-                  sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+                // Buffer minimum 2048 samples (approx 128ms) to prevent sending too many tiny WebSocket messages
+                if (audioBuffer.length >= 2048) {
+                  const pcm16 = new Int16Array(audioBuffer.length);
+                  for (let i = 0; i < audioBuffer.length; i++) {
+                    pcm16[i] = Math.max(-1, Math.min(1, audioBuffer[i])) * 32767;
+                  }
+                  const buffer = new Uint8Array(pcm16.buffer);
+                  let binary = '';
+                  for (let i = 0; i < buffer.byteLength; i++) {
+                    binary += String.fromCharCode(buffer[i]);
+                  }
+                  const base64 = btoa(binary);
+
+                  if (sessionRef.current && !isNoiseShieldActiveRef.current) {
+                    sessionRef.current.sendRealtimeInput([{ mimeType: "audio/pcm;rate=16000", data: base64 }]);
+                  }
+                  audioBuffer = [];
                 }
               };
 
@@ -1625,14 +1633,17 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
               });
             }
           },
-          onclose: () => {
-            console.log("Live API connection closed, attempting to reconnect...");
+          onclose: (event: any) => {
+            console.log("Live API connection closed, attempting to reconnect...", event);
             if (isLiveRef.current) {
               const wasLive = isLiveRef.current;
               stopLiveSession();
               if (wasLive) {
+                // Prevent infinite tight loop if it closes immediately: Check if last successful connection was very recent
                 setTimeout(() => {
-                  startLiveSession();
+                  if (isRecording) {
+                    startLiveSession();
+                  }
                 }, 2000);
               }
             }
