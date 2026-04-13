@@ -236,7 +236,7 @@ export default function App() {
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || 'en-US');
-  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isAtTop, setIsAtTop] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_completed'));
   const virtuosoRef = useRef<any>(null);
@@ -515,14 +515,14 @@ export default function App() {
             }, { merge: true });
             console.log('Transcript saved to Firestore successfully');
             
-            // 智能置底捲動：僅在使用者處於底部或發送者是自己時自動捲動
+            // 智能置頂捲動：僅在使用者處於頂端或發送者是自己時自動置頂
             setTimeout(() => {
               const isLocalUser = lastTranscript.speakerId === user.uid;
-              if (isAtBottom || isLocalUser) {
+              if (isAtTop || isLocalUser) {
                 virtuosoRef.current?.scrollToIndex({
-                  index: transcripts.length - 1,
+                  index: 0,
                   behavior: 'smooth',
-                  align: 'end'
+                  align: 'start'
                 });
               }
             }, 150);
@@ -2498,8 +2498,8 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   </div>
                 )}
                 increaseViewportBy={1000}
-                atBottomStateChange={setIsAtBottom}
-                initialTopMostItemIndex={memoizedTranscripts.length > 0 ? memoizedTranscripts.length - 1 : 0}
+                atTopStateChange={setIsAtTop}
+                initialTopMostItemIndex={0}
               />
             )}
           </div>
