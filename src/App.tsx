@@ -1360,11 +1360,15 @@ export default function App() {
 
       let chunkCount = 0;
       workletNode.port.onmessage = (e) => {
-        if (!isLiveRef.current || !sessionRef.current) return;
-        
         chunkCount++;
         if (chunkCount % 100 === 0) {
-          console.log(`[Diagnostic] Mic streaming: Sent ${chunkCount} chunks`);
+          console.warn(`[Diagnostic] Mic data flowing: Recv ${chunkCount} chunks from hardware`);
+        }
+
+        if (!isLiveRef.current || !sessionRef.current) return;
+        
+        if (chunkCount % 100 === 0) {
+          console.log(`[Diagnostic] Socket ACTIVE: Sent ${chunkCount} chunks to Gemini`);
         }
 
         const inputData = e.data;
@@ -1438,7 +1442,9 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           temperature: 0.1,
           topP: 0.95,
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } },
+            // 恢復視覺回饋的關鍵：開啟輸入轉錄
+            inputTranscription: {} 
           },
           systemInstruction: { parts: [{ text: systemInstruction }] }
         },
@@ -1451,8 +1457,23 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           },
           onmessage: (message: any) => {
             lastMessageTimeRef.current = Date.now();
+            
+            // 處理模型回傳的內容（包含 inputTranscription 文字）
             if (message.serverContent?.inputTranscription?.text || message.serverContent?.modelTurn?.parts) {
               console.log("Received content:", JSON.stringify(message.serverContent, null, 2));
+              
+              // 如果有收到聽到的文字，嘗試將其推送到 UI
+              const capturedText = message.serverContent?.inputTranscription?.text;
+              if (capturedText && isLiveRef.current) {
+                const convertedText = convertToTwIfNeeded(capturedText);
+                addTranscript({
+                  original: convertedText,
+                  translated: "……（語音翻譯中）", // 雖然 Alpha 模式不回傳翻譯文字，但至少讓使用者看到已錄音
+                  sourceLang: localLangRef.current,
+                  targetLang: clientLangRef.current,
+                  isFinal: message.serverContent?.inputTranscription?.isFinal || false
+                });
+              }
             }
 
             const convertToTwIfNeeded = (text: string) => {
