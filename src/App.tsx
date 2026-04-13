@@ -1359,7 +1359,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       const newSession = await ai.live.connect({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.0-flash-exp",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
