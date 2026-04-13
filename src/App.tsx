@@ -1013,6 +1013,11 @@ export default function App() {
       isLocal: true,
       ...(userName ? { speakerName: userName } : {})
     }]);
+    
+    // [FORCE SCROLL] Ensure manual messages are immediately visible
+    setTimeout(() => {
+      virtuosoRef.current?.scrollToIndex({ index: 'last', align: 'end', behavior: 'auto' });
+    }, 50);
 
     setInputText('');
     setIsTranslatingText(true);
@@ -1038,6 +1043,12 @@ export default function App() {
         setTranscripts(prev => prev.map(t => 
           t.id === msgId ? { ...t, translated: freeResult, isTranslating: false } : t
         ));
+        
+        // [FORCE SCROLL] Ensure translation is visible after it arrives
+        setTimeout(() => {
+          virtuosoRef.current?.scrollToIndex({ index: 'last', align: 'end', behavior: 'smooth' });
+        }, 100);
+        
         setIsTranslatingText(false);
         return;
       } catch (freeErr: any) {
@@ -1171,7 +1182,7 @@ export default function App() {
       });
       return () => cancelAnimationFrame(scrollHandler);
     }
-  }, [transcripts.length, lastTranscriptContent]);
+  }, [transcripts.length, lastTranscriptContent, isAtBottom]); // Added isAtBottom to deps for stability
 
   const playAudioChunk = (base64Audio: string) => {
     if (!playbackContextRef.current) {
@@ -2506,7 +2517,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 followOutput="smooth"
                 alignToBottom
                 increaseViewportBy={1000}
-                atBottomThreshold={150}
+                atBottomThreshold={300}
                 atBottomStateChange={setIsAtBottom}
                 initialTopMostItemIndex={memoizedTranscripts.length > 0 ? memoizedTranscripts.length - 1 : 0}
               />
