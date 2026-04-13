@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
-import { Mic, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield } from 'lucide-react';
+import { Mic, Mic2, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
 import { QRCodeSVG } from 'qrcode.react';
