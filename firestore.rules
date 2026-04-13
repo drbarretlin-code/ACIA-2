@@ -129,8 +129,8 @@ service cloud.firestore {
 
     match /connections/{connectionId} {
       allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && connectionId.startsWith(request.auth.uid) && isValidConnection(request.resource.data);
-      allow delete: if isAuthenticated() && connectionId.startsWith(request.auth.uid);
+      allow create, update: if isAuthenticated() && connectionId.matches('^' + request.auth.uid + '.*') && isValidConnection(request.resource.data);
+      allow delete: if isAuthenticated() && connectionId.matches('^' + request.auth.uid + '.*');
     }
 
     match /users/{userId}/history/{translationId} {
