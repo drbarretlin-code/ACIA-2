@@ -1759,7 +1759,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
         console.error("Failed to sync recording state to Firestore:", e);
       }
     }
-    }
   };
 
   // 監聽語言變更，同步更新本地辨識語系
