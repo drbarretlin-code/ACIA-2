@@ -36,8 +36,15 @@ const TranscriptItem = React.memo(({ t }: { t: any }) => (
         {t.original}
       </div>
       {!t.isFinal && t.original && (
-        <div className="text-xs text-slate-400 dark:text-slate-500 italic animate-pulse">
-          即時字幕: {t.original}
+        <div className="text-xs text-slate-400 dark:text-slate-500 italic animate-pulse flex items-center gap-1">
+          {t.isLocalStt ? (
+            <>
+              <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
+              <span>極速預覽: {t.original}</span>
+            </>
+          ) : (
+            <span>即時字幕: {t.original}</span>
+          )}
         </div>
       )}
     </div>
@@ -135,6 +142,7 @@ interface Transcript {
   createdAt: number;
   timestamp?: any;
   isLocal?: boolean;
+  isLocalStt?: boolean; // 新增：用於標記是否為本地端即時辨識結果
 }
 
 const getFlagEmoji = (countryCode: string) => {
@@ -332,6 +340,8 @@ export default function App() {
   const sessionRef = useRef<any>(null);
   const isLiveRef = useRef<boolean>(false);
   const transcriptsRef = useRef<Transcript[]>([]);
+  const recognitionRef = useRef<any>(null); // 新增：Web Speech Recognition 引用
+
 
   useEffect(() => {
     transcriptsRef.current = transcripts;
@@ -1245,13 +1255,19 @@ export default function App() {
       mediaStreamRef.current = null;
     }
 
-    if (sessionRef.current) {
-      try {
         sessionRef.current.close();
       } catch (e) {
         console.error("Error closing session:", e);
-      }
+       }
       sessionRef.current = null;
+    }
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
     }
 
     if (processorRef.current) {
@@ -1295,6 +1311,80 @@ export default function App() {
     }
     
     nextPlayTimeRef.current = 0;
+  };
+
+  const setupSpeechRecognition = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      console.warn("Speech recognition not supported in this browser.");
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = localLangRef.current || 'zh-TW';
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (!event.results[i].isFinal) {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+
+      if (interimTranscript.trim()) {
+        const processedText = convertToTwIfNeeded(interimTranscript);
+        setTranscripts(prev => {
+          const last = prev[prev.length - 1];
+          // 如果最後一條是非最終狀態且是本地 STT 或 Gemini 剛開出的空項目
+          if (last && !last.isFinal && (last.isLocalStt || (last.isLocal && !last.original))) {
+            const newTranscripts = [...prev];
+            newTranscripts[prev.length - 1] = { 
+              ...last, 
+              original: processedText,
+              isLocalStt: true // 標記為極速預覽
+            };
+            return newTranscripts;
+          } else if (!last || last.isFinal) {
+            // 建立新的極速預覽項目
+            return [...prev, {
+              id: "local-stt-" + Date.now().toString(),
+              original: processedText,
+              translated: "",
+              isFinal: false,
+              isTranslating: true,
+              sourceLang: "Auto",
+              targetLang: "Auto",
+              createdAt: Date.now(),
+              isLocal: true,
+              isLocalStt: true,
+              ...(userName ? { speakerName: userName } : {})
+            }];
+          }
+          return prev;
+        });
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.warn("Local Speech recognition error:", event.error);
+    };
+
+    recognition.onend = () => {
+      // 如果還在錄音，則重啟辨識以維持連貫
+      if (isRecordingRef.current && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (e) {}
+      }
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch (e) {}
   };
 
   const startLiveSession = async () => {
@@ -1448,6 +1538,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           onopen: async () => {
             console.warn("[Diagnostic] Live API SOCKET OPENED!");
             isLiveRef.current = true; // [CRITICAL FIX] Enable Path 0 and Stop triggers
+            setupSpeechRecognition(); // 啟動本地極速辨識
             if (audioContextRef.current?.state === 'suspended') {
               await audioContextRef.current.resume();
             }
@@ -1492,7 +1583,11 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                   const last = prev[lastIndex];
                   if (last && !last.isFinal && last.isLocal) {
                     const newTranscripts = [...prev];
-                    newTranscripts[lastIndex] = { ...last, original: processedText };
+                    newTranscripts[lastIndex] = { 
+                      ...last, 
+                      original: processedText,
+                      isLocalStt: false // 由 AI 提供的精準結果接管，移除「極速預覽」標記
+                    };
                     return newTranscripts;
                   } else {
                     return [...prev, {
@@ -1663,7 +1758,18 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
         console.error("Failed to sync recording state to Firestore:", e);
       }
     }
+    }
   };
+
+  // 監聽語言變更，同步更新本地辨識語系
+  useEffect(() => {
+    if (recognitionRef.current && isRecording) {
+      try {
+        recognitionRef.current.stop();
+        // recognition.onend 會自動抓取最新的 localLangRef 並重新啟動
+      } catch (e) {}
+    }
+  }, [localLang]);
 
   return (
     <div className={cn("h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col overflow-hidden transition-colors duration-300", isDarkMode && "dark")}>
