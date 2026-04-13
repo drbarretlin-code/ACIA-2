@@ -1395,13 +1395,16 @@ export default function App() {
         for (let i = 0; i < resampledData.length; i++) {
           pcm16[i] = Math.max(-1, Math.min(1, resampledData[i])) * 32767;
         }
-        const buffer = new Uint8Array(pcm16.buffer);
-        let binary = '';
-        for (let i = 0; i < buffer.byteLength; i++) {
-          binary += String.fromCharCode(buffer[i]);
+        
+        // 核心加固：改用迴圈迭代轉換為 Base64，避免大型數據包時 spread operator (...) 導致的棧溢出
+        let binary = "";
+        const bytes = new Uint8Array(pcm16.buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binary += String.fromCharCode(bytes[i]);
         }
         const base64 = btoa(binary);
-
+        
         if (sessionRef.current && !isNoiseShieldActiveRef.current) {
           try {
             sessionRef.current.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: base64 } });
@@ -1426,10 +1429,10 @@ export default function App() {
 
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
-        apiVersion: 'v1alpha'
+        apiVersion: 'v1beta'
       });
 
-      console.log("--- Gemini Live Engine: Version 2026-04-13-14-30 (The-Final-Standard) ---");
+      console.log("--- Gemini Live Engine: Version 2026-04-13-14-41 (Double-Locked-Stable) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
