@@ -1331,7 +1331,83 @@ export default function App() {
       }
       mediaStreamRef.current = stream;
       
-      // 監聽媒體串流狀態，若中斷則停止會話
+      // 1. [Pre-warming] 提前載入音訊模組與建立節點
+      if (audioCtx && audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+
+      try {
+        console.warn("[Diagnostic] Pre-warming: Adding AudioWorklet module...");
+        await audioCtx.audioWorklet.addModule('/audio-processor.js');
+        console.warn("[Diagnostic] Pre-warming: AudioWorklet module ready.");
+      } catch (e) {
+        console.log("[Diagnostic] AudioWorklet already added or error:", e);
+      }
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      sourceRef.current = source;
+      const workletNode = new AudioWorkletNode(audioCtx, 'audio-processor');
+      processorRef.current = workletNode;
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = 150;
+      filterRef.current = filter;
+
+      source.connect(filter);
+      filter.connect(workletNode);
+      workletNode.connect(audioCtx.destination);
+
+      let chunkCount = 0;
+      workletNode.port.onmessage = (e) => {
+        if (!isLiveRef.current || !sessionRef.current) return;
+        
+        chunkCount++;
+        if (chunkCount % 100 === 0) {
+          console.log(`[Diagnostic] Mic streaming: Sent ${chunkCount} chunks`);
+        }
+
+        const inputData = e.data;
+        const inputSampleRate = audioCtx.sampleRate;
+        const targetSampleRate = 16000;
+        
+        // Resample 
+        let resampledData = inputData;
+        if (inputSampleRate !== targetSampleRate) {
+          const ratio = inputSampleRate / targetSampleRate;
+          const outputLength = Math.round(inputData.length / ratio);
+          resampledData = new Float32Array(outputLength);
+          for (let i = 0; i < outputLength; i++) {
+            const index = i * ratio;
+            const index1 = Math.floor(index);
+            const index2 = Math.min(index1 + 1, inputData.length - 1);
+            const fraction = index - index1;
+            resampledData[i] = inputData[index1] * (1 - fraction) + inputData[index2] * fraction;
+          }
+        }
+
+        const pcm16 = new Int16Array(resampledData.length);
+        for (let i = 0; i < resampledData.length; i++) {
+          pcm16[i] = Math.max(-1, Math.min(1, resampledData[i])) * 32767;
+        }
+        const buffer = new Uint8Array(pcm16.buffer);
+        let binary = '';
+        for (let i = 0; i < buffer.byteLength; i++) {
+          binary += String.fromCharCode(buffer[i]);
+        }
+        const base64 = btoa(binary);
+
+        if (sessionRef.current && !isNoiseShieldActiveRef.current) {
+          try {
+            sessionRef.current.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+          } catch (e) {
+            console.error("Audio streaming interrupted:", e);
+            sessionRef.current = undefined;
+          }
+        }
+      };
+
+      // 監聽媒體串流狀態
       stream.getTracks().forEach(track => {
         track.onended = () => {
           console.log("Media track ended, stopping session.");
@@ -1344,7 +1420,7 @@ export default function App() {
         apiVersion: 'v1beta'
       });
 
-      console.log("--- Gemini Live Engine: Version 2026-04-13-13-20 (Decoupled-Minimalist) ---");
+      console.log("--- Gemini Live Engine: Version 2026-04-13-13-35 (Pre-warmed-Stable) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
@@ -1354,7 +1430,8 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
       updateApiUsage('request');
 
-      console.warn("[Diagnostic] Attempting ai.live.connect with gemini-3.1-flash-live-preview (User-Verified Model)...");
+      // 2. [Direct Connection] 當一切就緒後才發起連線
+      console.warn("[Diagnostic] Audio Ready. Attempting instant ai.live.connect...");
       const newSession = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
@@ -1364,115 +1441,21 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
           },
-          systemInstruction: { 
-            parts: [{ text: systemInstruction }] 
-          }
+          systemInstruction: { parts: [{ text: systemInstruction }] }
         },
         callbacks: {
           onopen: async () => {
-            try {
-              console.warn("[Diagnostic] Live API CONNECTION ESTABLISHED (onopen fired)!");
-              console.warn("[Diagnostic] Inside onopen callback...");
-              if (!audioContextRef.current || !mediaStreamRef.current) {
-                console.error("[Diagnostic] Missing AudioContext or MediaStream in onopen!");
-                return;
-              }
-              
-              const audioCtx = audioContextRef.current;
-              // 關鍵修正：確保 AudioContext 在 User Gesture 後恢復運行
-              if (audioCtx.state === 'suspended') {
-                console.warn("[Diagnostic] Resuming suspended AudioContext...");
-                await audioCtx.resume();
-                console.warn("[Diagnostic] AudioContext resumed successfully.");
-              }
-              
-              const stream = mediaStreamRef.current;
-
-              try {
-                console.warn("[Diagnostic] Adding AudioWorklet module...");
-                await audioCtx.audioWorklet.addModule('/audio-processor.js');
-                console.warn("[Diagnostic] AudioWorklet module added successfully.");
-              } catch (e) {
-                console.error("[Diagnostic] AudioWorklet module error:", e);
-              }
-              
-              console.warn("[Diagnostic] Creating Audio Nodes...");
-              const source = audioCtx.createMediaStreamSource(stream);
-              sourceRef.current = source;
-              const workletNode = new AudioWorkletNode(audioCtx, 'audio-processor');
-              console.warn("[Diagnostic] AudioWorkletNode created.");
-              
-              let chunkCount = 0;
-              workletNode.port.onmessage = (e) => {
-                if (!isLiveRef.current) return;
-                chunkCount++;
-                if (chunkCount % 100 === 0) {
-                   console.log(`[Diagnostic] Mic data detected: Sent ${chunkCount} chunks to Gemini`);
-                }
-                const inputData = e.data;
-                const inputSampleRate = audioCtx.sampleRate;
-                const targetSampleRate = 16000;
-                
-                // Resample to 16000Hz (simplified inline resampler)
-                let resampledData = inputData;
-                if (inputSampleRate !== targetSampleRate) {
-                  const ratio = inputSampleRate / targetSampleRate;
-                  const outputLength = Math.round(inputData.length / ratio);
-                  resampledData = new Float32Array(outputLength);
-                  for (let i = 0; i < outputLength; i++) {
-                    const index = i * ratio;
-                    const index1 = Math.floor(index);
-                    const index2 = Math.min(index1 + 1, inputData.length - 1);
-                    const fraction = index - index1;
-                    resampledData[i] = inputData[index1] * (1 - fraction) + inputData[index2] * fraction;
-                  }
-                }
-
-                const pcm16 = new Int16Array(resampledData.length);
-                for (let i = 0; i < resampledData.length; i++) {
-                  pcm16[i] = Math.max(-1, Math.min(1, resampledData[i])) * 32767;
-                }
-                const buffer = new Uint8Array(pcm16.buffer);
-                let binary = '';
-                for (let i = 0; i < buffer.byteLength; i++) {
-                  binary += String.fromCharCode(buffer[i]);
-                }
-                const base64 = btoa(binary);
-
-                if (sessionRef.current && !isNoiseShieldActiveRef.current) {
-                  try {
-                    sessionRef.current.sendRealtimeInput({ media: { mimeType: "audio/pcm;rate=16000", data: base64 } });
-                  } catch (e) {
-                    console.error("Audio streaming interrupted:", e);
-                    sessionRef.current = undefined; // 阻斷無窮迴圈的 WebSocket 錯誤洗版
-                  }
-                }
-              };
-
-              // Add high-pass filter
-              const filter = audioCtx.createBiquadFilter();
-              filter.type = 'highpass';
-              filter.frequency.value = 150;
-              filterRef.current = filter;
-
-              source.connect(filter);
-              filter.connect(workletNode);
-              workletNode.connect(audioCtx.destination);
-              processorRef.current = workletNode;
-            } catch (err) {
-              console.error("Audio processing error:", err);
-              setErrorMsg("音訊處理發生錯誤");
-              stopLiveSession();
+            console.warn("[Diagnostic] Live API CONNECTION ESTABLISHED (Instant mode)!");
+            if (audioContextRef.current?.state === 'suspended') {
+              await audioContextRef.current.resume();
             }
           },
           onmessage: (message: any) => {
             lastMessageTimeRef.current = Date.now();
-            // 簡化日誌，避免過多輸出
             if (message.serverContent?.inputTranscription?.text || message.serverContent?.modelTurn?.parts) {
-              console.log("Received message content:", JSON.stringify(message.serverContent, null, 2));
+              console.log("Received content:", JSON.stringify(message.serverContent, null, 2));
             }
 
-            // 轉換文字為繁體中文 (如果設定包含 zh-TW)
             const convertToTwIfNeeded = (text: string) => {
               if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
                 return s2tConverter(text);
@@ -1480,10 +1463,8 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               return text;
             };
 
-            // 過濾非指定語系的字元 (避免 STT 幻覺產生韓文/日文等)
             const filterUnsupportedScripts = (text: string) => {
               if (!text) return text;
-              
               const langs = [localLangRef.current, clientLangRef.current];
               const hasKorean = langs.some(l => l.startsWith('ko'));
               const hasJapanese = langs.some(l => l.startsWith('ja'));
