@@ -56,14 +56,14 @@ async function listModels() {
     }
 
     try {
-      console.log("Testing gemini-2.5-flash...");
+      console.log("Testing gemini-3.1-flash-live-preview...");
       const res = await (client as any).models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-live-preview",
         contents: "hi"
       });
-      console.log("2.5-flash check: OK");
+      console.log("3.1-flash-live-preview check: OK");
     } catch (e: any) {
-      console.log("2.5-flash check: FAILED -", e.message || e);
+      console.log("3.1-flash-live-preview check: FAILED -", e.message || e);
     }
 
   } catch (err) {
