@@ -1452,7 +1452,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
-          responseModalities: ["audio", "text"] as any,
+          responseModalities: ["audio"] as any,
           temperature: 0.1,
           topP: 0.95,
           speechConfig: {
