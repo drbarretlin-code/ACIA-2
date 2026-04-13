@@ -2,14 +2,15 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
-import { Mic, Mic2, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield } from 'lucide-react';
+import { Mic, Mic2, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, User, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn } from './lib/utils';
 import { db, auth, signInWithGoogle, signInAnon } from './firebase';
 import { collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, updateDoc, serverTimestamp, getDocs, getDoc, writeBatch } from 'firebase/firestore';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import toast, { Toaster } from 'react-hot-toast';
 import { translations } from './translations';
 import { translateText, translateTextStream, translateTextFree } from './lib/translation-service';
@@ -290,7 +291,7 @@ export default function App() {
     return localStorage.getItem('audio_output') !== 'false';
   });
   const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'None');
-  const [voiceEngine, setVoiceEngine] = useState<'local' | 'ai'>(() => (localStorage.getItem('voice_engine') as 'local' | 'ai') || 'ai'); // 預設改回 'ai' 以保證初次穩定性
+  const [voiceEngine] = useState<'local' | 'ai'>('ai'); // 鎖定高品質模式
 
 
   // Refs for stable access in async handlers (Socket/Gemini)
@@ -2659,54 +2660,36 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 )}
               </button>
               
-              <div className={cn(
-                "absolute right-5 transition-all duration-300 translate-x-4 flex items-center bg-white dark:bg-slate-800 shadow-xl rounded-full border border-slate-200 dark:border-slate-700 pr-6 pl-2 py-1 gap-1 z-0",
-                showAudioSettings ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-              )}>
-                {(['None', 'Myself', 'ALL', 'Others'] as const).map((mode) => (
+              <div className="absolute bottom-full right-0 mb-4 flex flex-col-reverse gap-3 items-center pointer-events-none">
+                {(['None', 'Others', 'Myself', 'ALL'] as const).map((mode, idx) => (
                   <button
                     key={mode}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setAudioOutputMode(mode);
                       setIsAudioOutputEnabled(mode !== 'None');
                     }}
-                    className={cn(
-                      "px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200 whitespace-nowrap",
-                      audioOutputMode === mode
-                        ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-sm"
-                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                    )}
-                  >
-                    {mode === 'None' ? '靜音' : mode === 'Myself' ? '僅自己' : mode === 'ALL' ? '全部' : '僅他人'}
-                  </button>
-                ))}
-              </div>
-
-              {/* 語音引擎切換 (極速 vs 高品質) */}
-              <div className={cn(
-                "absolute right-5 bottom-full mb-2 transition-all duration-300 translate-x-4 flex items-center bg-white dark:bg-slate-800 shadow-xl rounded-full border border-slate-200 dark:border-slate-700 p-1 z-10",
-                showAudioSettings ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-              )}>
-                {(['local', 'ai'] as const).map((eng) => (
-                  <button
-                    key={eng}
-                    onClick={() => {
-                      setVoiceEngine(eng);
-                      localStorage.setItem('voice_engine', eng);
-                      if (eng === 'local' && 'speechSynthesis' in window) {
-                        const u = new SpeechSynthesisUtterance("");
-                        window.speechSynthesis.speak(u);
-                      }
+                    style={{ 
+                      transitionDelay: showAudioSettings ? `${idx * 50}ms` : '0ms',
+                      transform: showAudioSettings ? 'translateY(0) scale(1)' : `translateY(${(4-idx) * 20}px) scale(0.5)`,
                     }}
                     className={cn(
-                      "px-3 py-1 text-[10px] font-bold rounded-full transition-all flex items-center gap-1",
-                      voiceEngine === eng 
-                        ? (eng === 'local' ? "bg-amber-500 text-white" : "bg-blue-600 text-white")
-                        : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      "w-12 h-12 rounded-full flex items-center justify-center text-[10px] font-bold shadow-lg border transition-all duration-300 pointer-events-auto",
+                      showAudioSettings ? "opacity-100" : "opacity-0",
+                      audioOutputMode === mode
+                        ? "bg-gradient-to-tr from-blue-600 to-indigo-600 text-white border-blue-400 scale-110 z-20"
+                        : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 z-10"
                     )}
+                    title={mode === 'None' ? '靜音' : mode === 'Myself' ? '僅自己' : mode === 'ALL' ? '全部' : '僅他人'}
                   >
-                    {eng === 'local' ? <Zap className="w-3 h-3" /> : <Mic2 className="w-3 h-3" />}
-                    {eng === 'local' ? '極速模式' : '高品質'}
+                    <div className="flex flex-col items-center gap-0.5">
+                      {mode === 'None' ? <VolumeX className="w-4 h-4" /> : 
+                       mode === 'Myself' ? <User className="w-4 h-4" /> : 
+                       mode === 'Others' ? <Users className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                      <span className="scale-[0.8] leading-none">
+                        {mode === 'None' ? '靜音' : mode === 'Myself' ? '自己' : mode === 'ALL' ? '全部' : '他人'}
+                      </span>
+                    </div>
                   </button>
                 ))}
               </div>
