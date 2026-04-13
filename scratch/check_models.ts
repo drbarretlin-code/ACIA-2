@@ -55,6 +55,17 @@ async function listModels() {
       console.log("2.0-flash-exp check: FAILED -", e.message || e);
     }
 
+    try {
+      console.log("Testing gemini-2.5-flash...");
+      const res = await (client as any).models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: "hi"
+      });
+      console.log("2.5-flash check: OK");
+    } catch (e: any) {
+      console.log("2.5-flash check: FAILED -", e.message || e);
+    }
+
   } catch (err) {
     console.error("Fatal error listing models:", err);
   }
