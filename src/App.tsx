@@ -240,6 +240,7 @@ export default function App() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_completed'));
   const virtuosoRef = useRef<any>(null);
+  const prevTranscriptsLengthRef = useRef(0);
 
   const memoizedTranscripts = useMemo(() => {
     return [...transcripts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -515,17 +516,8 @@ export default function App() {
             }, { merge: true });
             console.log('Transcript saved to Firestore successfully');
             
-            // 智能置頂捲動：僅在使用者處於頂端或發送者是自己時自動置頂
-            setTimeout(() => {
-              const isLocalUser = lastTranscript.speakerId === user.uid;
-              if (isAtTop || isLocalUser) {
-                virtuosoRef.current?.scrollToIndex({
-                  index: 0,
-                  behavior: 'smooth',
-                  align: 'start'
-                });
-              }
-            }, 150);
+            // NOTE: Automatic scrolling logic has been moved to a dedicated useEffect 
+            // watching transcripts.length for more robust real-time behavior.
           } catch (e) {
             console.error("Failed to save transcript to Firestore", e);
           }
@@ -534,6 +526,26 @@ export default function App() {
       }
     }
   }, [transcripts, roomId, user, userName]);
+            
+  // 專屬捲動控制 Effect - 確保「最新訊息置頂」且「對齊頂端」
+  useEffect(() => {
+    // 只有當 transcripts 數量增加時（代表有新訊息插入，通常是在 Index 0）才觸發捲動
+    if (transcripts.length > prevTranscriptsLengthRef.current) {
+      const lastTranscript = transcripts[transcripts.length - 1]; // 注意：transcripts 內部是 Ascending
+      const isLocalUser = lastTranscript?.speakerId === user?.uid;
+      
+      // 如果使用者目前在頂端，或該訊息是本地發送，則強制對齊頂端 (Index 0)
+      if (isAtTop || isLocalUser) {
+        // 使用 behavior: 'auto' 減少即時更新時的視覺跳動感
+        virtuosoRef.current?.scrollToIndex({
+          index: 0,
+          behavior: 'auto',
+          align: 'start'
+        });
+      }
+    }
+    prevTranscriptsLengthRef.current = transcripts.length;
+  }, [transcripts.length, isAtTop, user?.uid]);
 
   // Firebase Auth
   useEffect(() => {
