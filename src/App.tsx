@@ -1368,6 +1368,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             parts: [{ text: systemInstruction }] 
           }
         },
+        callbacks: {
           onopen: async () => {
             console.warn("[Diagnostic] Live API CONNECTION ESTABLISHED (onopen fired)!");
               console.warn("[Diagnostic] Inside onopen callback...");
