@@ -1270,6 +1270,11 @@ export default function App() {
       playbackContextRef.current = null;
     }
     
+    if (sessionRef.current) {
+      // Clear the session reference to prevent ongoing processor chunks from writing to closed socket
+      sessionRef.current = undefined; 
+    }
+    
     nextPlayTimeRef.current = 0;
   };
 
@@ -1366,7 +1371,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       sessionRef.current = await ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: "gemini-2.0-flash-exp",
         config: {
           generation_config: {
             response_modalities: ["audio", "text"],
