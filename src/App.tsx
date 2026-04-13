@@ -887,31 +887,16 @@ export default function App() {
     }
 
     try {
-      // 使用 fetch 直接呼叫 API 以獲取 Response Headers
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: "test" }] }] })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API Key validation failed: ${response.status} ${response.statusText} - ${errorText}`);
-      }
-
-      // 檢查速率限制標頭 (x-ratelimit-limit)
-      const rateLimit = response.headers.get('x-ratelimit-limit');
-      const limit = rateLimit ? parseInt(rateLimit, 10) : 0;
-      
-      // 根據速率限制判斷：免費版通常較低 (例如 15 RPM)，付費版較高
-      const type = limit > 50 ? 'paid' : 'free';
+      // 停止不必要的 API Key 驗證：取消這個會消耗免費配額的請求
+      // 以免使用者在 F5 重新整理時不斷觸發 429 Too Many Requests 鎖死。
+      const type = 'free';
       const projectName = 'Interpreter';
 
       const result = { type, projectName };
       apiKeyValidationCache.current[key] = result;
       setApiKeyType(result.type);
       setProjectName(result.projectName);
-      console.log(`API Key validated: ${type}, Rate Limit: ${limit}`);
+      console.log(`API Key validated (mocked to free tier).`);
     } catch (e) {
       console.error("API Key validation failed:", e);
       // 驗證失敗時，保持原狀態
