@@ -243,7 +243,11 @@ export default function App() {
   const prevTranscriptsLengthRef = useRef(0);
 
   const memoizedTranscripts = useMemo(() => {
-    return [...transcripts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return [...transcripts].sort((a, b) => {
+      const timeA = a.createdAt || a.timestamp?.toMillis() || 0;
+      const timeB = b.createdAt || b.timestamp?.toMillis() || 0;
+      return timeB - timeA;
+    });
   }, [transcripts]);
 
   const [shareSuccess, setShareSuccess] = useState(false);
@@ -510,6 +514,7 @@ export default function App() {
               isFinal: true,
               sourceLang: transcriptToSave.sourceLang,
               targetLang: transcriptToSave.targetLang,
+              createdAt: transcriptToSave.createdAt, // 保存原始時間戳記以便排序穩定
               timestamp: serverTimestamp(),
               speakerId: user.uid,
               ...(userName ? { speakerName: userName } : {})
@@ -718,8 +723,12 @@ export default function App() {
             return !inFirestore && !prefixedInFirestore;
           });
           
-          // 確保排序穩定：Firestore 資料已按 timestamp 排序
-          const merged = [...firestoreTranscripts, ...localToKeep].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          // 確保排序穩定：使用強健的時間戳記解析 (Ascending)
+          const merged = [...firestoreTranscripts, ...localToKeep].sort((a, b) => {
+            const timeA = a.createdAt || a.timestamp?.toMillis() || 0;
+            const timeB = b.createdAt || b.timestamp?.toMillis() || 0;
+            return timeA - timeB;
+          });
           console.log("Merged transcripts:", merged);
           return merged;
         });
