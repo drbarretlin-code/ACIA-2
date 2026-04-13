@@ -1376,15 +1376,15 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       sessionRef.current = await ai.live.connect({
         model: "gemini-2.0-flash-exp",
         config: {
-          generation_config: {
-            response_modalities: ["audio", "text"],
+          generationConfig: {
+            responseModalities: ["audio", "text"] as any,
             temperature: 0.1,
-            top_p: 0.95,
-            speech_config: {
-              voice_config: { prebuilt_voice_config: { voice_name: voiceType === 'Men' ? "Puck" : "Aoede" } }
+            topP: 0.95,
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
             }
           },
-          system_instruction: { 
+          systemInstruction: { 
             parts: [{ 
               text: `${systemInstruction}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。請確保翻譯結果與使用者的語音輸入保持同步且完整。`
             }] 
