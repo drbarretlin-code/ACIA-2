@@ -1363,6 +1363,7 @@ export default function App() {
         apiVersion: 'v1beta'
       });
 
+      console.log("--- Gemini Live Engine: Version 2026-04-13-12-12 (Stable) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
