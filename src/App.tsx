@@ -1322,8 +1322,10 @@ export default function App() {
     nextPlayTimeRef.current = 0;
   };
 
-  const speakText = (text: string) => {
+  const speakText = (text: string, lang?: string) => {
     if (!('speechSynthesis' in window)) return;
+    if (!text.trim()) return;
+    
     // 檢查音訊輸出設定
     if (!isAudioOutputEnabledRef.current || audioOutputMode === 'None') return;
     
@@ -1332,14 +1334,26 @@ export default function App() {
     if (audioOutputMode === 'Others' && isSelf) return;
     if (audioOutputMode === 'None') return;
 
+    // 修復引擎掛死問題：強制重置
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+    } catch (e) {}
+
+    const targetLang = lang || clientLangRef.current;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = clientLangRef.current;
-    utterance.rate = 1.1; // 稍微加快語速以提升節奏感
+    utterance.lang = targetLang;
+    utterance.rate = 1.1; 
     
-    const voices = window.speechSynthesis.getVoices();
-    // 優先尋找與目標語言完全匹配或語系匹配的音色
-    const targetLangBase = clientLangRef.current.split('-')[0];
-    const voice = voices.find(v => v.lang === clientLangRef.current) || 
+    // 確保音色清單刷新
+    let voices = window.speechSynthesis.getVoices();
+    if (!voices.length) {
+      // 某些瀏覽器需要等待 voiceschanged
+      console.warn("SpeechSynthesis voices not yet ready.");
+    }
+    
+    const targetLangBase = targetLang.split('-')[0];
+    const voice = voices.find(v => v.lang === targetLang) || 
                   voices.find(v => v.lang.startsWith(targetLangBase)) || 
                   voices[0];
     
@@ -1659,20 +1673,21 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                   
                   // 極速模式朗讀邏輯
                   if (voiceEngineRef.current === 'local') {
+                    const targetLang = isRecording ? clientLangRef.current : localLangRef.current;
                     ttsBufferRef.current += translatedChunk;
                     
                     // 重置超時定時器：如果 2 秒沒新文字，強制朗讀
                     if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
                     ttsTimeoutRef.current = setTimeout(() => {
                       if (ttsBufferRef.current.trim()) {
-                        speakText(ttsBufferRef.current);
+                        speakText(ttsBufferRef.current, targetLang);
                         ttsBufferRef.current = "";
                       }
                     }, 2000);
 
                     // 標點符號觸發
                     if (/[。，？！,.?!]/.test(ttsBufferRef.current)) {
-                      speakText(ttsBufferRef.current);
+                      speakText(ttsBufferRef.current, targetLang);
                       ttsBufferRef.current = "";
                       if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
                     }
@@ -1740,7 +1755,8 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               console.log("[Diagnostic] Live API turnComplete received");
               // 對話回合結束時，清空所有剩餘的本地 TTS 緩衝
               if (voiceEngineRef.current === 'local' && ttsBufferRef.current.trim()) {
-                speakText(ttsBufferRef.current);
+                const targetLang = isRecording ? clientLangRef.current : localLangRef.current;
+                speakText(ttsBufferRef.current, targetLang);
                 ttsBufferRef.current = "";
                 if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
               }
