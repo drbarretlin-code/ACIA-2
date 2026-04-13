@@ -389,7 +389,7 @@ export default function App() {
     if (isRecording) {
       startLiveSession();
     } else {
-      stopLiveSession();
+      stopLiveSession("isRecording_false");
     }
   }, [isRecording, userApiKey]);
 
@@ -431,7 +431,7 @@ export default function App() {
         setLiveSessionDuration(prev => prev + 1);
       }, 1000);
     } else {
-      stopLiveSession();
+      // NOTE: Removed redundant stopLiveSession() call here as it's already handled by the primary [isRecording] effect at line 388.
       setLiveSessionDuration(0);
       setShowTimePrompt(false);
     }
@@ -637,8 +637,17 @@ export default function App() {
             setProjectName(data.projectName);
           }
           if (data.isSpeakingEnabled !== undefined && data.isSpeakingEnabled !== isRecordingRef.current) {
-            setIsSpeakingEnabled(data.isSpeakingEnabled);
-            setIsRecording(data.isSpeakingEnabled);
+            // [HARDEN] Prevent remote state from unsetting local isRecording if the user is the creator
+            // This avoids "state flickering" during Firestore document updates.
+            const isCreator = user?.uid === data.creatorId;
+            const isRemoteDisabling = data.isSpeakingEnabled === false && isRecordingRef.current === true;
+            
+            if (isCreator && isRemoteDisabling) {
+              console.log("[Diagnostic] Ignoring remote speaker-disable update to maintain local session consistency.");
+            } else {
+              setIsSpeakingEnabled(data.isSpeakingEnabled);
+              setIsRecording(data.isSpeakingEnabled);
+            }
           }
           if (data.localLang && data.localLang !== localLangRef.current) {
             setLocalLang(data.localLang);
@@ -657,7 +666,7 @@ export default function App() {
               });
             }
             setIsRecording(false);
-            stopLiveSession();
+            stopLiveSession("room_closed_or_deleted");
           }
         } else {
           // Room deleted or doesn't exist
@@ -669,7 +678,7 @@ export default function App() {
             }
           });
           setIsRecording(false);
-          stopLiveSession();
+          stopLiveSession("room_deleted");
         }
       }, (error) => {
         console.error("Error listening to room:", error);
@@ -1187,12 +1196,18 @@ export default function App() {
     nextPlayTimeRef.current += audioBuffer.duration;
   };
 
-  const stopLiveSession = async () => {
+  const stopLiveSession = async (reason = "unspecified") => {
+    if (!isLiveRef.current && reason !== "room_deleted" && reason !== "unmount") {
+      // Avoid redundant logs if already stopped, unless it's a critical lifecycle event
+      // console.log(`[Diagnostic] stopLiveSession(${reason}) ignored: Already stopped.`);
+      // return;
+    }
+
     isLiveRef.current = false;
     setIsNoiseShieldActive(false);
 
     if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
-      console.log("Room session stopped, but not closing room automatically.");
+      console.log(`[Diagnostic] Room session stopped (Reason: ${reason}), but not closing room automatically.`);
     }
 
     if (mediaStreamRef.current) {
@@ -1552,7 +1567,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             console.log("Live API connection closed, attempting to reconnect...", event);
             if (isLiveRef.current) {
               const wasLive = isLiveRef.current;
-              stopLiveSession();
+              stopLiveSession("socket_onclose");
               const isFatalError = event?.code === 1008 || event?.code === 1011 || event?.code === 400 || event?.code === 403 || event?.code === 404;
               if (wasLive && !isFatalError) {
                 setTimeout(() => { if (isRecordingRef.current) startLiveSession(); }, 2000);
@@ -1565,7 +1580,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           onerror: (err: any) => {
             console.error("Live API Error:", err);
             setErrorMsg("連線發生錯誤");
-            stopLiveSession();
+            stopLiveSession("socket_onerror");
           }
         }
       });
@@ -1576,7 +1591,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       let errorMessage = err.message || "啟動失敗";
       setErrorMsg(errorMessage);
       setCustomAlert({ message: errorMessage, type: 'alert' });
-      stopLiveSession();
+      stopLiveSession("initialization_failure");
     } finally {
       isInitializingRef.current = false;
     }
