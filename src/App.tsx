@@ -321,12 +321,12 @@ export default function App() {
           const data = await response.json();
           console.warn("--- BidiGenerateContent RAW Diagnostic ---");
           if (data && data.models) {
-             const liveModels = data.models
-               .filter((m: any) => m.supportedGenerationMethods?.includes('bidiGenerateContent') || m.name?.includes('live'))
-               .map((m: any) => ({ name: m.name, methods: m.supportedGenerationMethods }));
-             console.warn("Supported Live Models:", liveModels);
+             const liveModelNames = data.models
+               .filter((m: any) => m.supportedGenerationMethods?.includes('bidiGenerateContent'))
+               .map((m: any) => m.name.replace('models/', ''));
+             console.warn("Supported Live Model Names:", liveModelNames.join(", "));
           } else {
-             console.warn("Unexpected REST response:", data);
+             console.warn("Unexpected REST response (no models):", data);
           }
           console.warn("-------------------------------------------");
         } catch (e) {
