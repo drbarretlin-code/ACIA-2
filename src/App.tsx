@@ -317,11 +317,17 @@ export default function App() {
         try {
           const ai = new GoogleGenAI({ apiKey: userApiKey, apiVersion: 'v1beta' });
           const modelsResult: any = await ai.models.list();
-          console.log("--- BidiGenerateContent Diagnostic: Available Models ---");
-          console.log(modelsResult);
-          console.log("---------------------------------------------------------");
+          console.warn("--- BidiGenerateContent Diagnostic: Available Models ---");
+          if (modelsResult && Array.isArray(modelsResult)) {
+             console.warn(modelsResult.filter((m: any) => m.supportedGenerationMethods?.includes('bidiGenerateContent')).map((m: any) => m.name));
+          } else if (modelsResult && modelsResult.models) {
+             console.warn(modelsResult.models.filter((m: any) => m.supportedGenerationMethods?.includes('bidiGenerateContent')).map((m: any) => m.name));
+          } else {
+             console.warn("Raw Models Result:", modelsResult);
+          }
+          console.warn("---------------------------------------------------------");
         } catch (e) {
-          console.warn("Diagnostic failed (possibly free tier restriction):", e);
+          console.error("DIAGNOSTIC CRITICAL FAILURE:", e);
         }
       };
       diagnoseModels();
@@ -1398,7 +1404,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       const newSession = await ai.live.connect({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3.1-flash-live-preview",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
