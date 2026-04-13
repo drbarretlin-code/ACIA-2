@@ -1443,9 +1443,9 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       
       // 關鍵修正：不使用 await 阻塞後續邏輯，改用 then 鍊確保數據管道暢通
       ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: "gemini-2.0-flash-exp",
         config: {
-          responseModalities: ["audio"] as any,
+          responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
           topP: 0.95,
           speechConfig: {
