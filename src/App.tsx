@@ -446,7 +446,7 @@ export default function App() {
     } else if (liveSessionDuration >= 10800) {
       if (user && roomCreatorId && user.uid === roomCreatorId) {
         setIsRecording(false);
-        stopLiveSession();
+        stopLiveSession("session_limit_3h");
         setCustomAlert({ message: "連續使用已達三小時，系統強制斷線。", type: 'alert' });
         setLiveSessionDuration(0);
       }
@@ -458,7 +458,7 @@ export default function App() {
     if (showTimePrompt) {
       timeout = setTimeout(() => {
         setIsRecording(false);
-        stopLiveSession();
+        stopLiveSession("idle_timeout_3m");
         setShowTimePrompt(false);
         setCustomAlert({ message: "閒置超過3分鐘，系統已自動斷線。", type: 'alert' });
       }, 3 * 60 * 1000); // 3 minutes
@@ -644,7 +644,9 @@ export default function App() {
             
             if (isCreator && isRemoteDisabling) {
               console.log("[Diagnostic] Ignoring remote speaker-disable update to maintain local session consistency.");
-            } else {
+            } else if (data.isSpeakingEnabled === false || data.isSpeakingEnabled === true) {
+              // Only update if it's an explicit boolean to avoid null/undefined flickering
+              console.log(`[Diagnostic] setIsRecording(${data.isSpeakingEnabled}) from Room Listener`);
               setIsSpeakingEnabled(data.isSpeakingEnabled);
               setIsRecording(data.isSpeakingEnabled);
             }
@@ -1020,6 +1022,14 @@ export default function App() {
     // 移除 setIsNoiseShieldActive(true/false) 以避免硬切換音訊流造成的 WebSocket 不穩定
 
     try {
+      // 0. 特殊路徑：如果當前 Live 會話已建立，直接輸入到會話中以獲得語音回饋
+      if (isLiveRef.current && sessionRef.current) {
+        console.log("[handleSendText] Path 0: Sending text to ACTIVE Live API Session for Audio Feedback");
+        sessionRef.current.sendRealtimeInput([{ text: currentInput }]);
+        setIsTranslatingText(false);
+        return;
+      }
+
       // 1. 優先路徑 (零配額限制)：Google 免費線上翻譯接口 (安全性與容量最佳)
       try {
         console.log("[handleSendText] Path: Using Free Translation Service (Isolated)");
@@ -1391,6 +1401,7 @@ export default function App() {
       });
 
       setIsRecording(true);
+      console.log("[Diagnostic] setIsRecording(true) from startLiveSession");
 
       const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
@@ -1572,6 +1583,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               if (wasLive && !isFatalError) {
                 setTimeout(() => { if (isRecordingRef.current) startLiveSession(); }, 2000);
               } else if (isFatalError && isRecordingRef.current) {
+                 console.log("[Diagnostic] setIsRecording(false) from socket_onclose_fatal");
                  setIsRecording(false);
                  setCustomAlert({ message: `伺服器連線發生致命錯誤 (${event?.code})，已自動停止錄音。`, type: 'alert' });
               }
@@ -1614,6 +1626,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
     }
 
     const newState = !isRecording;
+    console.log(`[Diagnostic] setIsRecording(${newState}) from toggleRecording`);
     setIsRecording(newState);
     
     if (roomId) {
