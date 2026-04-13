@@ -258,7 +258,6 @@ export default function App() {
   const [translatedPreview, setTranslatedPreview] = useState('');
   const [isTranslatingText, setIsTranslatingText] = useState(false);
   const [translationDirection, setTranslationDirection] = useState<'localToClient' | 'clientToLocal'>('localToClient');
-  const [isNoiseShieldActive, setIsNoiseShieldActive] = useState(false);
   
   // 費用統計相關 state
   const [sessionSeconds, setSessionSeconds] = useState(0);
@@ -280,7 +279,6 @@ export default function App() {
   // Refs for stable access in async handlers (Socket/Gemini)
   const localLangRef = useRef(localLang);
   const clientLangRef = useRef(clientLang);
-  const isNoiseShieldActiveRef = useRef(isNoiseShieldActive);
   const isAudioOutputEnabledRef = useRef(isAudioOutputEnabled);
   const lastMessageTimeRef = useRef<number>(Date.now());
   const isInitializingRef = useRef(false);
@@ -288,7 +286,6 @@ export default function App() {
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
   useEffect(() => { localLangRef.current = localLang; }, [localLang]);
   useEffect(() => { clientLangRef.current = clientLang; }, [clientLang]);
-  useEffect(() => { isNoiseShieldActiveRef.current = isNoiseShieldActive; }, [isNoiseShieldActive]);
   useEffect(() => { isAudioOutputEnabledRef.current = isAudioOutputEnabled; }, [isAudioOutputEnabled]);
   
   // Socket.io Ref
@@ -1027,7 +1024,6 @@ export default function App() {
         console.log("[handleSendText] Path 0: Sending text to ACTIVE Live API Session for Audio Feedback");
         sessionRef.current.sendRealtimeInput([{ text: currentInput }]);
         setIsTranslatingText(false);
-        // setIsNoiseShieldActive(false); // [CLEANUP] Avoid unnecessary state churn
         return;
       }
 
@@ -1099,7 +1095,6 @@ export default function App() {
       ));
     } finally {
       setIsTranslatingText(false);
-      // setIsNoiseShieldActive(false); // [CLEANUP] Avoid unnecessary state churn
     }
   };
 
@@ -1215,7 +1210,6 @@ export default function App() {
     }
 
     isLiveRef.current = false;
-    setIsNoiseShieldActive(false);
 
     if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
       console.log(`[Diagnostic] Room session stopped (Reason: ${reason}), but not closing room automatically.`);
@@ -2520,25 +2514,6 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   <ArrowRightLeft className={cn("w-4 h-4 transition-transform duration-500", translationDirection === 'clientToLocal' && "rotate-180")} />
                   <span className="text-xs font-medium hidden sm:inline">
                     {translationDirection === 'localToClient' ? 'Local → Client' : 'Client → Local'}
-                  </span>
-                </button>
-                
-                <button 
-                  onClick={() => setIsNoiseShieldActive(prev => !prev)}
-                  disabled={!isRecording}
-                  className={cn(
-                    "p-2.5 rounded-xl border transition-all shrink-0 flex items-center gap-2",
-                    isNoiseShieldActive 
-                      ? "bg-amber-100 border-amber-300 text-amber-600 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-400" 
-                      : !isRecording
-                        ? "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600 cursor-not-allowed opacity-50"
-                        : "bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-600"
-                  )}
-                  title={!isRecording ? "請先開啟錄音功能" : isNoiseShieldActive ? "Noise Shield Active (Mic Muted)" : "Noise Shield Inactive (Mic Live)"}
-                >
-                  <Shield className={cn("w-4 h-4", isNoiseShieldActive && "animate-pulse")} />
-                  <span className="text-xs font-medium hidden sm:inline">
-                    自動感應靜音
                   </span>
                 </button>
                 
