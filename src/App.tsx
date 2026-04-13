@@ -1158,6 +1158,19 @@ export default function App() {
     };
   }, []);
 
+  // [高保真置底捲動控制]
+  // 每當轉譯紀錄增加，或最後一則訊息的內容有變動（Streaming 中）時，強制平滑置底
+  const lastTranscriptContent = transcripts[transcripts.length - 1]?.translated + transcripts[transcripts.length - 1]?.original;
+  useEffect(() => {
+    if (transcripts.length > 0 && isAtBottom) {
+      virtuosoRef.current?.scrollToIndex({
+        index: transcripts.length - 1,
+        align: 'end',
+        behavior: 'smooth'
+      });
+    }
+  }, [transcripts.length, lastTranscriptContent]);
+
   const playAudioChunk = (base64Audio: string) => {
     if (!playbackContextRef.current) {
       playbackContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -1423,6 +1436,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             }
           },
           onmessage: (message: any) => {
+            console.log("[Diagnostic] Live API onmessage received:", JSON.stringify(message).substring(0, 500));
             lastMessageTimeRef.current = Date.now();
             
             const convertToTwIfNeeded = (text: string) => {
@@ -1495,6 +1509,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               }
 
               if (textContent) {
+                console.log("[Diagnostic] modelTurn text content:", textContent);
                 setTranscripts(prev => {
                   const newTranscripts = [...prev];
                   const lastIndex = newTranscripts.length - 1;
@@ -1524,6 +1539,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
             const outTranscript = message.serverContent?.outputTranscription;
             if (outTranscript?.text) {
+              console.log("[Diagnostic] outputTranscription text:", outTranscript.text);
               const processedOutText = convertToTwIfNeeded(outTranscript.text);
               setTranscripts(prev => {
                 const newTranscripts = [...prev];
