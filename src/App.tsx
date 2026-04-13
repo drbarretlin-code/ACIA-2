@@ -1432,8 +1432,7 @@ export default function App() {
       setIsRecording(true);
 
       const ai = new GoogleGenAI({ 
-        apiKey: effectiveApiKey,
-        apiVersion: 'v1beta'
+        apiKey: effectiveApiKey
       });
 
       console.log("--- Gemini Live Engine: Version 2026-04-13-14-41 (Double-Locked-Stable) ---");
@@ -1446,23 +1445,21 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
       updateApiUsage('request');
 
-      console.warn("[Diagnostic] Audio Ready. Attempting ai.live.connect (v1beta)...");
+      console.warn("[Diagnostic] Audio Ready. Handshaking with Gemini...");
       
-      // 關鍵修正：不使用 await 阻塞後續邏輯，改用 then 鍊確保數據管道暢通
-      ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
-        config: {
-          responseModalities: ["audio"] as any,
-          temperature: 0.1,
-          topP: 0.95,
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
+      try {
+        sessionRef.current = await ai.live.connect({
+          model: "gemini-3.1-flash-live-preview",
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
+            },
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
+            systemInstruction: `${systemInstruction}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。`
           },
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-          systemInstruction: { parts: [{ text: systemInstruction }] }
-        },
-        callbacks: {
+          callbacks: {
           onopen: async () => {
             console.warn("[Diagnostic] Live API SOCKET OPENED!");
             if (audioContextRef.current?.state === 'suspended') {
