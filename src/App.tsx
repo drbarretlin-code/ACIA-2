@@ -1354,9 +1354,9 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
       updateApiUsage('request');
 
-      console.warn("[Diagnostic] Attempting ai.live.connect with gemini-2.0-flash (most compatible fallback)...");
+      console.warn("[Diagnostic] Attempting ai.live.connect with gemini-3.1-flash-live-preview (User-Verified Model)...");
       const newSession = await ai.live.connect({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3.1-flash-live-preview",
         config: {
           responseModalities: ["audio"] as any,
           temperature: 0.1,
