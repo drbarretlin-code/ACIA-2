@@ -1254,11 +1254,12 @@ export default function App() {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
-
+    if (sessionRef.current) {
+      try {
         sessionRef.current.close();
       } catch (e) {
         console.error("Error closing session:", e);
-       }
+      }
       sessionRef.current = null;
     }
 
