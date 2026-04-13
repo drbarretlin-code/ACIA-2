@@ -1358,7 +1358,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       const newSession = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
-          responseModalities: ["audio"] as any,
+          responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
           topP: 0.95,
           speechConfig: {
@@ -1379,6 +1379,13 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               }
               
               const audioCtx = audioContextRef.current;
+              // 關鍵修正：確保 AudioContext 在 User Gesture 後恢復運行
+              if (audioCtx.state === 'suspended') {
+                console.warn("[Diagnostic] Resuming suspended AudioContext...");
+                await audioCtx.resume();
+                console.warn("[Diagnostic] AudioContext resumed successfully.");
+              }
+              
               const stream = mediaStreamRef.current;
 
               try {
@@ -1395,8 +1402,13 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               const workletNode = new AudioWorkletNode(audioCtx, 'audio-processor');
               console.warn("[Diagnostic] AudioWorkletNode created.");
               
+              let chunkCount = 0;
               workletNode.port.onmessage = (e) => {
                 if (!isLiveRef.current) return;
+                chunkCount++;
+                if (chunkCount % 100 === 0) {
+                   console.log(`[Diagnostic] Mic data detected: Sent ${chunkCount} chunks to Gemini`);
+                }
                 const inputData = e.data;
                 const inputSampleRate = audioCtx.sampleRate;
                 const targetSampleRate = 16000;
