@@ -1426,10 +1426,10 @@ export default function App() {
 
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
-        apiVersion: 'v1beta'
+        apiVersion: 'v1alpha'
       });
 
-      console.log("--- Gemini Live Engine: Version 2026-04-13-14-20 (Beta-Breakthrough) ---");
+      console.log("--- Gemini Live Engine: Version 2026-04-13-14-30 (The-Final-Standard) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
