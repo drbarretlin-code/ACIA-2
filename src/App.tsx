@@ -546,14 +546,21 @@ export default function App() {
         // So we just write it once.
         
         const saveToFirestore = async () => {
-          if (!auth.currentUser) {
-            console.warn("Skip Firestore save: User not authenticated.");
+          const authUser = auth.currentUser;
+          if (!authUser) {
+            console.warn("[Firestore] Skip save: No active auth session.");
             return;
           }
+          if (!roomId) {
+            console.error("[Firestore] Skip save: roomId is missing.");
+            return;
+          }
+          
           try {
             // 更新本地 ID，確保與 Firestore 的同步一致性
             setTranscripts(prev => prev.map(t => t.id === lastTranscript.id ? transcriptToSave : t));
             
+            console.log(`[Firestore] Attempting to save transcript ${transcriptToSave.id} to room ${roomId}`);
             const docRef = doc(db, 'rooms', roomId, 'transcripts', transcriptToSave.id);
             await setDoc(docRef, {
               original: transcriptToSave.original,
@@ -563,15 +570,20 @@ export default function App() {
               targetLang: transcriptToSave.targetLang,
               createdAt: transcriptToSave.createdAt, // 保存原始時間戳記以便排序穩定
               timestamp: serverTimestamp(),
-              speakerId: user.uid,
+              speakerId: authUser.uid,
               ...(userName ? { speakerName: userName } : {})
             }, { merge: true });
-            console.log('Transcript saved to Firestore successfully');
-            
-            // NOTE: Automatic scrolling logic has been moved to a dedicated useEffect 
-            // watching transcripts.length for more robust real-time behavior.
-          } catch (e) {
-            console.error("Failed to save transcript to Firestore", e);
+            console.log('[Firestore] Transcript saved successfully');
+          } catch (e: any) {
+            console.error("[Firestore] Permission denied or write error:", e.message, {
+              uid: authUser.uid,
+              roomId: roomId,
+              docId: transcriptToSave.id
+            });
+            // 如果是因為權限問題且非房主，這可能是預期的（規則限制）
+            if (e.code === 'permission-denied') {
+              console.warn("[Firestore] Note: Write permission denied. Ensure you are the room owner or rules allow guest writes.");
+            }
           }
         };
         saveToFirestore();
@@ -1824,18 +1836,37 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
   const toggleRecording = async () => {
     console.trace("[Diagnostic] toggleRecording called");
     // 【解決 Chrome Web Audio Autoplay Policy 限制】
-    // 必須在使用者發生「實際點擊事件」的同一個 Call Stack 生命週期中立刻實例化或啟動 AudioContext
+    // 必須在使用者發生「實際點擊事件」的 Call Stack 中立刻實例化或啟動所有的 AudioContext
     try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      
+      // 1. 啟動錄音 Context
       if (!audioContextRef.current) {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
         audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
       }
-      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume();
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+
+      // 2. 啟動播放 Context (高品質 AI 模式使用)
+      if (!playbackContextRef.current) {
+        playbackContextRef.current = new AudioContextClass({ sampleRate: 24000 });
+      }
+      if (playbackContextRef.current.state === 'suspended') {
+        playbackContextRef.current.resume();
+      }
+
+      // 3. 解鎖 SpeechSynthesis (本地極速模式使用)
+      if ('speechSynthesis' in window) {
+        const unlockUtterance = new SpeechSynthesisUtterance("");
+        unlockUtterance.volume = 0;
+        window.speechSynthesis.speak(unlockUtterance);
+        window.speechSynthesis.resume();
       }
     } catch (e) {
-      console.warn("AudioContext init/resume failed during gesture:", e);
+      console.warn("[Gesture] Audio/TTS wakeup failed:", e);
     }
+
 
     // 啟動錄音時，如果處於靜音模式，提醒使用者或自動切換
     if (audioOutputMode === 'None' || !isAudioOutputEnabled) {
