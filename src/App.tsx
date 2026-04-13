@@ -311,32 +311,6 @@ export default function App() {
     };
   }, [auth.currentUser]);
 
-  useEffect(() => {
-    if (userApiKey) {
-      const diagnoseModelsRaw = async () => {
-        try {
-          // 使用原生 fetch 直接查詢 Google REST API，排除 SDK 版本干擾
-          const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${userApiKey}`;
-          const response = await fetch(url);
-          const data = await response.json();
-          console.warn("--- BidiGenerateContent RAW Diagnostic ---");
-          if (data && data.models) {
-             const liveModelNames = data.models
-               .filter((m: any) => m.supportedGenerationMethods?.includes('bidiGenerateContent'))
-               .map((m: any) => m.name.replace('models/', ''));
-             console.warn("Supported Live Model Names:", liveModelNames.join(", "));
-          } else {
-             console.warn("Unexpected REST response (no models):", data);
-          }
-          console.warn("-------------------------------------------");
-        } catch (e) {
-          console.error("RAW DIAGNOSTIC FAILED:", e);
-        }
-      };
-      diagnoseModelsRaw();
-    }
-  }, [userApiKey]);
-
   // Initialize Auth-based Room Join logic ONLY after handleJoinRoom is defined later
   
   const transcriptEndRef = useRef<HTMLDivElement>(null);
@@ -1407,7 +1381,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       const newSession = await ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: "gemini-2.5-flash-native-audio-latest",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
