@@ -2638,7 +2638,9 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             <div className="flex items-center justify-center flex-shrink-0">
               <CountryFlag langId={clientLang} className="w-8 h-5 sm:w-10 sm:h-7 rounded shadow-sm border border-slate-200 dark:border-slate-700 object-cover" />
             </div>
+            </div>
           </div>
+
 
           {/* 底部控制區域：重新排版避免重疊，並具備玻璃擬態質感 */}
 
@@ -2836,7 +2838,6 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             </div>
           </div>
         </div>
-
         {/* Onboarding Modal */}
 
 
