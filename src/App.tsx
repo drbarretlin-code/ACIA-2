@@ -2658,92 +2658,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             </div>
           </div>
 
-            <div className="flex items-center gap-1.5 ml-2 border-l border-slate-200 dark:border-slate-700 pl-2">
-              <div className="relative">
-                <button 
-                  className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110",
-                    isAudioOutputEnabled 
-                      ? "bg-gradient-to-tr from-blue-500 to-purple-500 text-white shadow-sm" 
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-400"
-                  )}
-                  title="語音輸出設定"
-                  onClick={() => setShowAudioSettings(!showAudioSettings)}
-                >
-                  {isAudioOutputEnabled ? (
-                    <svg className="w-4 h-4 animate-[pulse_2s_ease-in-out_infinite]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                      <line x1="23" y1="1" x2="1" y2="23"></line>
-                    </svg>
-                  )}
-                </button>
 
-                {/* 展開的設定選單 */}
-                {showAudioSettings && (
-                  <div className="absolute bottom-full right-0 mb-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-3 flex flex-col gap-3 min-w-[200px] z-[100] animate-in fade-in slide-in-from-bottom-2">
-                    {/* 輸出模式 */}
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 px-1">輸出方式</span>
-                      <div className="flex flex-wrap gap-1">
-                        {(['None', 'Myself', 'ALL', 'Others'] as const).map((mode) => (
-                          <button
-                            key={mode}
-                            onClick={() => {
-                              setAudioOutputMode(mode);
-                              setIsAudioOutputEnabled(mode !== 'None');
-                            }}
-                            className={cn(
-                              "px-2 py-1 text-[10px] font-medium rounded-lg transition-all",
-                              audioOutputMode === mode
-                                ? "bg-blue-600 text-white shadow-sm"
-                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
-                            )}
-                          >
-                            {mode === 'None' ? '靜音' : mode === 'Myself' ? '僅自己' : mode === 'ALL' ? '全部' : '僅他人'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 引擎切換 */}
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 px-1">語音引擎</span>
-                      <div className="flex gap-1">
-                        {(['local', 'ai'] as const).map((eng) => (
-                          <button
-                            key={eng}
-                            onClick={() => {
-                              setVoiceEngine(eng);
-                              localStorage.setItem('voice_engine', eng);
-                              if (eng === 'local' && 'speechSynthesis' in window) {
-                                // 預啟動
-                                const u = new SpeechSynthesisUtterance("");
-                                window.speechSynthesis.speak(u);
-                              }
-                            }}
-                            className={cn(
-                              "flex-1 px-2 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1",
-                              voiceEngine === eng 
-                                ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
-                                : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200"
-                            )}
-                          >
-                            {eng === 'local' ? <Zap className="w-3 h-3" /> : <Mic2 className="w-3 h-3" />}
-                            {eng === 'local' ? '極速模式' : '高品質'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
 
         </div>
 
@@ -2896,6 +2811,102 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
           </div>
         )}
 
+        {/* 懸浮式語音輸出設定按鈕 (FAB) */}
+        <div className="fixed bottom-28 right-6 z-[100] flex flex-col items-end">
+          {/* 展開的設定選單 */}
+          {showAudioSettings && (
+            <div className="mb-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 rounded-3xl shadow-2xl p-4 flex flex-col gap-4 min-w-[240px] animate-in fade-in zoom-in slide-in-from-bottom-5">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 mb-1">
+                <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Volume2 className="w-4 h-4 text-blue-500" /> 播放設定
+                </span>
+                <button onClick={() => setShowAudioSettings(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+
+              {/* 輸出方式 */}
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1">
+                  <Globe2 className="w-3 h-3" /> 輸出對象
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(['None', 'Myself', 'ALL', 'Others'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => {
+                        setAudioOutputMode(mode);
+                        setIsAudioOutputEnabled(mode !== 'None');
+                      }}
+                      className={cn(
+                        "px-3 py-2 text-xs font-medium rounded-xl transition-all border",
+                        audioOutputMode === mode
+                          ? "bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20"
+                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-blue-300"
+                      )}
+                    >
+                      {mode === 'None' ? '靜音' : mode === 'Myself' ? '僅自己' : mode === 'ALL' ? '全部' : '僅他人'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 引擎切換 */}
+              <div className="space-y-2">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1">
+                  <Zap className="w-3 h-3" /> 語音引擎
+                </span>
+                <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                  {(['local', 'ai'] as const).map((eng) => (
+                    <button
+                      key={eng}
+                      onClick={() => {
+                        setVoiceEngine(eng);
+                        localStorage.setItem('voice_engine', eng);
+                        if (eng === 'local' && 'speechSynthesis' in window) {
+                          const u = new SpeechSynthesisUtterance("");
+                          window.speechSynthesis.speak(u);
+                        }
+                      }}
+                      className={cn(
+                        "flex-1 px-3 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2",
+                        voiceEngine === eng 
+                          ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                          : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                      )}
+                    >
+                      {eng === 'local' ? <Zap className="w-3.5 h-3.5" /> : <Mic2 className="w-3.5 h-3.5" />}
+                      {eng === 'local' ? '極速' : '高品質'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 主按鈕 */}
+          <button 
+            onClick={() => setShowAudioSettings(!showAudioSettings)}
+            className={cn(
+              "w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 border-4 border-white dark:border-slate-900 group relative",
+              isAudioOutputEnabled 
+                ? "bg-gradient-to-tr from-blue-600 to-purple-600 text-white" 
+                : "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600"
+            )}
+          >
+            {isAudioOutputEnabled ? (
+              <Volume2 className="w-7 h-7 animate-[pulse_2s_ease-in-out_infinite]" />
+            ) : (
+              <VolumeX className="w-6 h-6" />
+            )}
+            
+            {/* Tooltip */}
+            <span className="absolute right-full mr-4 px-3 py-1.5 bg-slate-900 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              語音輸出設定
+            </span>
+          </button>
+        </div>
+
         {/* Clear Confirm Modal */}
         {showClearConfirm && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/20 dark:bg-slate-900/60 backdrop-blur-sm p-4">
@@ -2919,6 +2930,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             </div>
           </div>
         )}
+
       </main>
     </div>
   );
