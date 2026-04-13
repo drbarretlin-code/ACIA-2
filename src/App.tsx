@@ -1363,7 +1363,7 @@ export default function App() {
         apiVersion: 'v1beta'
       });
 
-      console.log("--- Gemini Live Engine: Version 2026-04-13-12-51 (Resync-Fix) ---");
+      console.log("--- Gemini Live Engine: Version 2026-04-13-12-55 (Verified-Model-Fix) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
@@ -1382,7 +1382,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
       updateApiUsage('request');
 
       const newSession = await ai.live.connect({
-        model: "gemini-3.1-flash-live-preview",
+        model: "gemini-2.0-flash-exp",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
