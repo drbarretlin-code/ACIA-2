@@ -1460,60 +1460,6 @@ export default function App() {
     }
   };
 
-    // 取得目標語言
-    const targetLang = lang || clientLangRef.current;
-    
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = targetLang;
-    utterance.rate = 1.1; 
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-
-    // 確保音色清單刷新
-    let voices = window.speechSynthesis.getVoices();
-    
-    // 語音選擇邏輯優化
-    const findVoice = () => {
-      // 1. 精確匹配 (例如 zh-TW)
-      let voice = voices.find(v => v.lang === targetLang);
-      if (voice) return voice;
-      
-      // 2. 基礎語言匹配 (例如 zh)
-      const baseLang = targetLang.split('-')[0];
-      voice = voices.find(v => v.lang.startsWith(baseLang));
-      if (voice) return voice;
-      
-      // 3. 特殊回退：如果是 zh-TW 但沒找到，嘗試搜尋包含 "Chinese" 或 "Taiwan" 或 "Hong Kong" 的
-      if (baseLang === 'zh') {
-        const keywords = ['Chinese', 'Taiwan', 'Hong Kong', 'Mandarin', 'Cantonese'];
-        voice = voices.find(v => keywords.some(k => v.name.includes(k)));
-        if (voice) return voice;
-      }
-      
-      return voices[0];
-    };
-
-    const selectedVoice = findVoice();
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
-      console.log(`[TTS] Speaking with voice: ${selectedVoice.name} (${selectedVoice.lang})`);
-    }
-
-    // 錯誤處理與事件監測
-    utterance.onerror = (event) => {
-      console.error(`[TTS] Error speaking text: ${event.error}`, event);
-    };
-
-    // 執行朗讀
-    try {
-      // 這裡採用插隊模式以保證「極速」體驗，如果正在朗讀則取消之前的
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.error("[TTS] Failed to execute speak():", e);
-    }
-  };
-
 
   const setupSpeechRecognition = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
