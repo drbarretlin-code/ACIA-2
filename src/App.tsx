@@ -1353,7 +1353,7 @@ export default function App() {
 
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
-        httpOptions: { apiVersion: 'v1alpha' }
+        apiVersion: 'v1alpha'
       });
 
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
