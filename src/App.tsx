@@ -1370,7 +1370,8 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
         },
         callbacks: {
           onopen: async () => {
-            console.warn("[Diagnostic] Live API CONNECTION ESTABLISHED (onopen fired)!");
+            try {
+              console.warn("[Diagnostic] Live API CONNECTION ESTABLISHED (onopen fired)!");
               console.warn("[Diagnostic] Inside onopen callback...");
               if (!audioContextRef.current || !mediaStreamRef.current) {
                 console.error("[Diagnostic] Missing AudioContext or MediaStream in onopen!");
