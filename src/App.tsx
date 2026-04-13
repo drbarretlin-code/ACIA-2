@@ -1440,7 +1440,7 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
                   const base64 = btoa(binary);
 
                   if (sessionRef.current && !isNoiseShieldActiveRef.current) {
-                    sessionRef.current.sendRealtimeInput([{ mimeType: "audio/pcm;rate=16000", data: base64 }]);
+                    sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
                   }
                   audioBuffer = [];
                 }
