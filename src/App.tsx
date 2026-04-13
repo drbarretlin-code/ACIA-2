@@ -711,6 +711,17 @@ export default function App() {
   }, [isAuthReady, user, roomId]);
 
   const handleCreateRoom = async () => {
+    // 【解鎖 Web Audio】
+    try {
+      if (!audioContextRef.current) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+      }
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+    } catch (e) {}
+
     let currentUser = user;
     if (!currentUser) {
       try {
@@ -763,6 +774,17 @@ export default function App() {
   };
 
   const handleJoinRoom = async () => {
+    // 【解鎖 Web Audio】
+    try {
+      if (!audioContextRef.current) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+      }
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+    } catch (e) {}
+
     let currentUser = user;
     if (!currentUser) {
       try {
@@ -1679,6 +1701,20 @@ CRITICAL DIRECTIVE: MINIMAL LATENCY (SIMULTANEOUS MODE).
 
   // 切換錄音狀態 (同步到 Firestore)
   const toggleRecording = async () => {
+    // 【解決 Chrome Web Audio Autoplay Policy 限制】
+    // 必須在使用者發生「實際點擊事件」的同一個 Call Stack 生命週期中立刻實例化或啟動 AudioContext
+    try {
+      if (!audioContextRef.current) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+      }
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+    } catch (e) {
+      console.warn("AudioContext init/resume failed during gesture:", e);
+    }
+
     const newState = !isRecording;
     setIsRecording(newState);
     
