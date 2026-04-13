@@ -283,6 +283,7 @@ export default function App() {
   const isNoiseShieldActiveRef = useRef(isNoiseShieldActive);
   const isAudioOutputEnabledRef = useRef(isAudioOutputEnabled);
   const lastMessageTimeRef = useRef<number>(Date.now());
+  const isInitializingRef = useRef(false);
 
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
   useEffect(() => { localLangRef.current = localLang; }, [localLang]);
@@ -1429,7 +1430,7 @@ export default function App() {
 
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
-        apiVersion: 'v1alpha'
+        apiVersion: 'v1beta'
       });
 
       console.log("--- Gemini Live Engine: Version 2026-04-13-14-41 (Double-Locked-Stable) ---");
@@ -1442,11 +1443,11 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
       updateApiUsage('request');
 
-      console.warn("[Diagnostic] Audio Ready. Attempting ai.live.connect (v1alpha)...");
+      console.warn("[Diagnostic] Audio Ready. Attempting ai.live.connect (v1beta)...");
       
       // 關鍵修正：不使用 await 阻塞後續邏輯，改用 then 鍊確保數據管道暢通
       ai.live.connect({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3.1-flash-live-preview",
         config: {
           responseModalities: ["audio", "text"] as any,
           temperature: 0.1,
@@ -1454,7 +1455,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
           },
-          inputAudioTranscription: { enabled: true },
           systemInstruction: { parts: [{ text: systemInstruction }] }
         },
         callbacks: {
