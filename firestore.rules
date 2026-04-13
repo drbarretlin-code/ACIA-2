@@ -81,13 +81,14 @@ service cloud.firestore {
 
     function isValidTranscript(data) {
       return hasRequiredFields(['original', 'translated', 'isFinal', 'timestamp', 'speakerId']) &&
-             hasOnlyAllowedFields(['original', 'translated', 'isFinal', 'sourceLang', 'targetLang', 'timestamp', 'speakerId', 'speakerName']) &&
+             hasOnlyAllowedFields(['original', 'translated', 'isFinal', 'sourceLang', 'targetLang', 'timestamp', 'speakerId', 'speakerName', 'createdAt']) &&
              data.original is string && data.original.size() < 5000 &&
              data.translated is string && data.translated.size() < 5000 &&
              data.isFinal is bool &&
              (!('sourceLang' in data) || (data.sourceLang is string && data.sourceLang.size() < 50)) &&
              (!('targetLang' in data) || (data.targetLang is string && data.targetLang.size() < 50)) &&
              (!('speakerName' in data) || (data.speakerName is string && data.speakerName.size() < 100)) &&
+             (!('createdAt' in data) || (data.createdAt is number)) &&
              data.timestamp is timestamp &&
              data.speakerId is string && data.speakerId.size() > 0 && data.speakerId.size() < 100;
     }
@@ -119,7 +120,7 @@ service cloud.firestore {
     match /rooms/{roomId}/transcripts/{transcriptId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isValidTranscript(request.resource.data) && (request.resource.data.speakerId == request.auth.uid || get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid);
-      allow update: if isAuthenticated() && isValidTranscript(request.resource.data) && (resource.data.speakerId == request.auth.uid || get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid) && request.resource.data.speakerId == resource.data.speakerId && request.resource.data.timestamp == resource.data.timestamp;
+      allow update: if isAuthenticated() && isValidTranscript(request.resource.data) && (resource.data.speakerId == request.auth.uid || get(/databases/$(database)/documents/rooms/$(roomId)).data.creatorId == request.auth.uid) && request.resource.data.speakerId == resource.data.speakerId;
       // Allow the room creator OR the transcript speaker to delete the transcript
       allow delete: if isAuthenticated() && (
         resource.data.speakerId == request.auth.uid ||
