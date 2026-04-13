@@ -1419,6 +1419,10 @@ export default function App() {
         };
       });
 
+      // 關鍵修正：在發起連線前就準備好接收狀態
+      isLiveRef.current = true;
+      setIsLive(true);
+
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
         apiVersion: 'v1alpha'
@@ -1451,6 +1455,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
         callbacks: {
           onopen: async () => {
             console.warn("[Diagnostic] Live API CONNECTION ESTABLISHED (Instant mode)!");
+            // 確保 sessionRef 已經被暫時佔位或在後續正確賦值
             if (audioContextRef.current?.state === 'suspended') {
               await audioContextRef.current.resume();
             }
