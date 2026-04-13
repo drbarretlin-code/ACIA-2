@@ -1189,19 +1189,17 @@ export default function App() {
 
   const stopLiveSession = async () => {
     isLiveRef.current = false;
-    setIsNoiseShieldActive(false); // 重置噪音屏蔽狀態
+    setIsNoiseShieldActive(false);
 
     if (roomId && user && roomCreatorId && user.uid === roomCreatorId) {
       console.log("Room session stopped, but not closing room automatically.");
     }
 
-    // 1. 停止媒體串流
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
 
-    // 2. 關閉 Live Session
     if (sessionRef.current) {
       try {
         sessionRef.current.close();
@@ -1211,7 +1209,6 @@ export default function App() {
       sessionRef.current = null;
     }
 
-    // 3. 徹底釋放 AudioContext 與處理器
     if (processorRef.current) {
       try {
         processorRef.current.port.onmessage = null;
@@ -1241,17 +1238,6 @@ export default function App() {
       sourceRef.current = null;
     }
 
-    if (audioContextRef.current) {
-      try {
-        if (audioContextRef.current.state === 'running') {
-          await audioContextRef.current.suspend();
-        }
-      } catch (e) {
-        console.error("Error suspending AudioContext:", e);
-      }
-      // 不設為 null，保留實例以便重連時使用
-    }
-
     if (playbackContextRef.current) {
       try {
         if (playbackContextRef.current.state !== 'closed') {
@@ -1263,16 +1249,11 @@ export default function App() {
       playbackContextRef.current = null;
     }
     
-    if (sessionRef.current) {
-      // Clear the session reference to prevent ongoing processor chunks from writing to closed socket
-      sessionRef.current = undefined; 
-    }
-    
     nextPlayTimeRef.current = 0;
   };
 
   const startLiveSession = async () => {
-    if (isLiveRef.current) return;
+    if (isLiveRef.current || isInitializingRef.current) return;
     const effectiveApiKey = (user && roomCreatorId && user.uid === roomCreatorId) ? userApiKey : (roomApiKey || userApiKey);
     
     if (!effectiveApiKey) {
@@ -1285,7 +1266,7 @@ export default function App() {
       return;
     }
 
-    isLiveRef.current = true;
+    isInitializingRef.current = true;
     setErrorMsg(null);
     lastMessageTimeRef.current = Date.now();
 
@@ -1294,12 +1275,10 @@ export default function App() {
         throw new Error("您的瀏覽器不支援麥克風，請嘗試使用 Safari 或 Chrome 瀏覽器開啟此網頁。");
       }
 
-      // 盡量重複使用 AudioContext，避免在 setTimeout 中重新建立導致 suspended 狀態
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       let audioCtx = audioContextRef.current;
       
       if (!audioCtx || audioCtx.state === 'closed') {
-        // 設定 sampleRate: 16000 讓瀏覽器原生進行高品質重採樣，避免手動線性內插導致音質下降
         audioCtx = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
         audioContextRef.current = audioCtx;
       }
@@ -1314,7 +1293,6 @@ export default function App() {
 
       let stream;
       try {
-        // iOS WebKit 要求 getUserMedia 必須在使用者互動後立即執行
         stream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
             echoCancellation,
@@ -1326,27 +1304,14 @@ export default function App() {
         });
       } catch (err: any) {
         console.error("麥克風存取錯誤:", err);
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          throw new Error("麥克風權限被拒絕。請點擊瀏覽器網址列旁的鎖頭圖示，允許此網站存取您的麥克風。");
-        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          throw new Error("找不到麥克風裝置，請確認您的設備已連接麥克風。");
-        } else {
-          throw new Error("無法存取麥克風：" + err.message);
-        }
+        throw new Error("無法存取麥克風：" + err.message);
       }
       mediaStreamRef.current = stream;
       
-      // 1. [Pre-warming] 提前載入音訊模組與建立節點
-      if (audioCtx && audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
-
       try {
-        console.warn("[Diagnostic] Pre-warming: Adding AudioWorklet module...");
         await audioCtx.audioWorklet.addModule('/audio-processor.js');
-        console.warn("[Diagnostic] Pre-warming: AudioWorklet module ready.");
       } catch (e) {
-        console.log("[Diagnostic] AudioWorklet already added or error:", e);
+        console.log("AudioWorklet already added or error:", e);
       }
 
       const source = audioCtx.createMediaStreamSource(stream);
@@ -1366,21 +1331,12 @@ export default function App() {
       let chunkCount = 0;
       workletNode.port.onmessage = (e) => {
         chunkCount++;
-        if (chunkCount % 100 === 0) {
-          console.warn(`[Diagnostic] Mic data flowing: Recv ${chunkCount} chunks from hardware`);
-        }
-
         if (!isLiveRef.current || !sessionRef.current) return;
         
-        if (chunkCount % 100 === 0) {
-          console.log(`[Diagnostic] Socket ACTIVE: Sent ${chunkCount} chunks to Gemini`);
-        }
-
         const inputData = e.data;
         const inputSampleRate = audioCtx.sampleRate;
         const targetSampleRate = 16000;
         
-        // Resample 
         let resampledData = inputData;
         if (inputSampleRate !== targetSampleRate) {
           const ratio = inputSampleRate / targetSampleRate;
@@ -1400,7 +1356,6 @@ export default function App() {
           pcm16[i] = Math.max(-1, Math.min(1, resampledData[i])) * 32767;
         }
         
-        // 核心加固：改用迴圈迭代轉換為 Base64，避免大型數據包時 spread operator (...) 導致的棧溢出
         let binary = "";
         const bytes = new Uint8Array(pcm16.buffer);
         const len = bytes.byteLength;
@@ -1414,47 +1369,36 @@ export default function App() {
         }
       };
 
-      // 監聽媒體串流狀態
       stream.getTracks().forEach(track => {
         track.onended = () => {
-          console.log("Media track ended, stopping session.");
           stopLiveSession();
         };
       });
 
-      // 關鍵修正：在發起連線前就準備好接收狀態
-      isLiveRef.current = true;
       setIsRecording(true);
 
-      const ai = new GoogleGenAI({ 
-        apiKey: effectiveApiKey
-      });
-
-      console.log("--- Gemini Live Engine: Version 2026-04-13-14-41 (Double-Locked-Stable) ---");
+      const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
-      const systemInstruction = `You are a rapid real-time simultaneous interpreter.
+      const systemInstructionContent = `You are a rapid real-time simultaneous interpreter.
 The two authorized languages are: ${localName} and ${clientName}.
 CRITICAL: Translate user's speech immediately without filler. Output only translated text.`;
 
       updateApiUsage('request');
 
-      console.warn("[Diagnostic] Audio Ready. Handshaking with Gemini...");
-      
-      try {
-        sessionRef.current = await ai.live.connect({
-          model: "gemini-3.1-flash-live-preview",
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
-            },
-            inputAudioTranscription: {},
-            outputAudioTranscription: {},
-            systemInstruction: `${systemInstruction}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。`
+      sessionRef.current = await ai.live.connect({
+        model: "gemini-3.1-flash-live-preview",
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
           },
-          callbacks: {
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+          systemInstruction: `${systemInstructionContent}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。`
+        },
+        callbacks: {
           onopen: async () => {
             console.warn("[Diagnostic] Live API SOCKET OPENED!");
             if (audioContextRef.current?.state === 'suspended') {
@@ -1464,7 +1408,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           onmessage: (message: any) => {
             lastMessageTimeRef.current = Date.now();
             
-            // 將工具函式移至最上方以避免提升問題 (Hoisting)
             const convertToTwIfNeeded = (text: string) => {
               if (localLang === 'zh-TW' || clientLang === 'zh-TW') {
                 return s2tConverter(text);
@@ -1481,7 +1424,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               const hasThai = langs.some(l => l.startsWith('th'));
               
               let filtered = text;
-              // 僅在必要時執行替換
               if (!hasKorean) filtered = filtered.replace(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g, '');
               if (!hasJapanese) filtered = filtered.replace(/[\u3040-\u309F\u30A0-\u30FF]/g, '');
               if (!hasThai) filtered = filtered.replace(/[\u0E00-\u0E7F]/g, '');
@@ -1490,29 +1432,16 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               return filtered;
             };
 
-            // 處理模型回傳的診斷內容
-            if (message.serverContent?.inputTranscription?.text || message.serverContent?.modelTurn?.parts) {
-              console.log("Received content:", JSON.stringify(message.serverContent, null, 2));
-            }
-
-            // 1. 處理使用者的語音轉文字 (inputTranscription)
-            // 僅處理使用者輸入，避免將 AI 的輸出誤判為輸入
             const inTranscript = message.serverContent?.inputTranscription;
             if (inTranscript?.text) {
               let cleanedText = filterUnsupportedScripts(inTranscript.text);
-              
-              // 修正：即使過濾後只剩下標點符號，也應該顯示，避免被誤判為無效內容
-              if (!cleanedText && inTranscript.text.trim()) {
-                cleanedText = inTranscript.text.trim();
-              }
+              if (!cleanedText && inTranscript.text.trim()) cleanedText = inTranscript.text.trim();
               
               if (cleanedText) {
                 const processedText = convertToTwIfNeeded(cleanedText);
                 setTranscripts(prev => {
-                  // 找出最後一筆由本地端建立且尚未完成的紀錄
                   const lastIndex = prev.length - 1;
                   const last = prev[lastIndex];
-                  
                   if (last && !last.isFinal && last.isLocal) {
                     const newTranscripts = [...prev];
                     newTranscripts[lastIndex] = { ...last, original: processedText };
@@ -1535,16 +1464,12 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               }
             }
 
-            // 2. 處理模型回傳的音訊與文字 (modelTurn)
             const parts = message.serverContent?.modelTurn?.parts;
             if (parts) {
               let textContent = "";
               for (const part of parts) {
-                if (part.text) {
-                  textContent += convertToTwIfNeeded(part.text);
-                }
+                if (part.text) textContent += convertToTwIfNeeded(part.text);
                 if (part.inlineData?.data && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
-                  console.log(`[Diagnostic] Receiving audio chunk: ${part.inlineData.data.length} bytes`);
                   const isSelf = isRecording; 
                   if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
                     playAudioChunk(part.inlineData.data);
@@ -1556,8 +1481,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                 setTranscripts(prev => {
                   const newTranscripts = [...prev];
                   const lastIndex = newTranscripts.length - 1;
-                  
-                  // 影隨式翻譯優化：直接將 AI 所有的 text 輸出視為對當前「未完成」對話的翻譯
                   if (lastIndex >= 0 && !newTranscripts[lastIndex].isFinal) {
                     newTranscripts[lastIndex] = { 
                       ...newTranscripts[lastIndex], 
@@ -1565,7 +1488,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                       isTranslating: false 
                     };
                   } else {
-                    // 如果最後一筆已完成或是空的，則建立一筆新的 AI 翻譯
                     newTranscripts.push({
                       id: "ai-" + Date.now().toString(),
                       original: "",
@@ -1583,7 +1505,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               }
             }
 
-            // 3. 處理模型的語音轉文字 (outputTranscription)
             const outTranscript = message.serverContent?.outputTranscription;
             if (outTranscript?.text) {
               const processedOutText = convertToTwIfNeeded(outTranscript.text);
@@ -1601,31 +1522,23 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               });
             }
 
-            // 4. 處理對話完成訊號
             if (message.serverContent?.turnComplete) {
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 if (last && !last.isFinal) {
-                  // 修正：只有當 AI 完全沒有輸出翻譯，且原始語音也是空的或佔位符時，才移除該筆紀錄
-                  // 避免因為 turnComplete 比翻譯結果早到，而誤刪了使用者剛講完的有效語音
-                  if (!last.translated.trim() && (!last.original.trim() || last.original === "(...)")) {
-                    return prev.slice(0, -1);
-                  }
+                  if (!last.translated.trim() && (!last.original.trim() || last.original === "(...)")) return prev.slice(0, -1);
                   return prev.map((t, i) => i === prev.length - 1 ? { ...t, isFinal: true, isTranslating: false } : t);
                 }
                 return prev;
               });
             }
 
-            // 5. 處理中斷訊號
             if (message.serverContent?.interrupted) {
               nextPlayTimeRef.current = 0;
-              // 立即停止當前播放的音訊
               if (playbackContextRef.current) {
                 playbackContextRef.current.close();
                 playbackContextRef.current = null;
               }
-              // 當被中斷時，標記上一條對話為已完成，防止後續內容錯誤追加
               setTranscripts(prev => {
                 const last = prev[prev.length - 1];
                 if (last && !last.isFinal) {
@@ -1640,18 +1553,10 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             if (isLiveRef.current) {
               const wasLive = isLiveRef.current;
               stopLiveSession();
-              
               const isFatalError = event?.code === 1008 || event?.code === 1011 || event?.code === 400 || event?.code === 403 || event?.code === 404;
-              
               if (wasLive && !isFatalError) {
-                // Prevent infinite tight loop if it closes immediately: Check if last successful connection was very recent
-                setTimeout(() => {
-                  if (isRecording) {
-                    startLiveSession();
-                  }
-                }, 2000);
-              } else if (isFatalError && isRecording) {
-                 console.error("Fatal Google API Connection Error detected (e.g. Model Not Found). Halting auto-reconnect to prevent microphone loops.");
+                setTimeout(() => { if (isRecordingRef.current) startLiveSession(); }, 2000);
+              } else if (isFatalError && isRecordingRef.current) {
                  setIsRecording(false);
                  setCustomAlert({ message: `伺服器連線發生致命錯誤 (${event?.code})，已自動停止錄音。`, type: 'alert' });
               }
@@ -1659,48 +1564,21 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
           },
           onerror: (err: any) => {
             console.error("Live API Error:", err);
-            let errorMessage = "連線發生錯誤";
-            if (err.message?.includes("permission") || err.message?.includes("403")) {
-              errorMessage = "API 金鑰無效或權限不足 (403 Forbidden)。請檢查您的金鑰設定。";
-            } else if (err.message?.includes("429") || err.message?.toLowerCase().includes("quota")) {
-              errorMessage = "系統額度已達上限 (Quota Exceeded)。建議您檢查 Google AI Studio 的使用量統計，或考慮升級為付費方案。";
-            }
-            setErrorMsg(errorMessage);
-            setCustomAlert({ message: errorMessage, type: 'alert' });
-            
-            // 嘗試自動重連
-            if (isLiveRef.current) {
-              console.log("Live API error, attempting to reconnect in 3 seconds...");
-              const wasLive = isLiveRef.current;
-              stopLiveSession();
-              if (wasLive) {
-                setTimeout(() => {
-                  startLiveSession();
-                }, 3000);
-              }
-            }
+            setErrorMsg("連線發生錯誤");
+            stopLiveSession();
           }
         }
-      }).then(session => {
-        sessionRef.current = session;
-        console.warn("[Diagnostic] Live API SESSION ESTABLISHED & ACTIVE!");
-      }).catch(err => {
-        console.error("[Diagnostic] Connection failed:", err);
-        stopLiveSession();
       });
+      
+      console.warn("[Diagnostic] Live API SESSION ESTABLISHED & ACTIVE!");
     } catch (err: any) {
       console.error("Failed to start Live API:", err);
       let errorMessage = err.message || "啟動失敗";
-      if (err.name === 'NotAllowedError' || err.message?.toLowerCase().includes('permission denied')) {
-        errorMessage = "無法存取麥克風。請允許麥克風權限，或嘗試使用 Safari / Chrome 瀏覽器開啟此網頁。";
-      } else if (err.message?.includes('429') || err.message?.toLowerCase().includes('quota')) {
-        errorMessage = "系統額度已達上限 (Quota Exceeded)。建議您檢查 Google AI Studio 的使用量統計，或考慮升級為付費方案。";
-      } else if (err.message?.includes('403')) {
-        errorMessage = "API 金鑰無效或權限不足 (403 Forbidden)。請檢查您的金鑰設定。";
-      }
       setErrorMsg(errorMessage);
       setCustomAlert({ message: errorMessage, type: 'alert' });
       stopLiveSession();
+    } finally {
+      isInitializingRef.current = false;
     }
   };
 
