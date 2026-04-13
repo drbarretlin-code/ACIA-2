@@ -858,7 +858,7 @@ export default function App() {
   };
 
   const handleShareUrl = () => {
-    const url = `https://translator-navy-pi.vercel.app/?room=${roomId}`;
+    const url = `${window.location.origin}/?room=${roomId}`;
     navigator.clipboard.writeText(url);
     setShareSuccess(true);
     setTimeout(() => setShareSuccess(false), 2000);
@@ -1005,7 +1005,7 @@ export default function App() {
       id: msgId,
       original: currentInput,
       translated: "",
-      isFinal: true,
+      isFinal: false, // [FIX] Set to false so onmessage can append the translation
       isTranslating: true,
       sourceLang: sourceName,
       targetLang: targetName,
@@ -1150,11 +1150,6 @@ export default function App() {
       }
     }
   };
-
-  // 自動滾動到最新對話
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'auto' });
-  }, [transcripts]);
 
   // 清除資源
   useEffect(() => {
@@ -1652,10 +1647,10 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             </button>
             <h3 className="text-xl font-bold mb-6 text-slate-800 dark:text-slate-100">掃描加入房間</h3>
             <div className="bg-white p-4 rounded-xl inline-block shadow-sm border border-slate-100">
-              <QRCodeSVG value={`https://translator-navy-pi.vercel.app/?room=${roomId}`} size={240} level="H" includeMargin={true} />
+              <QRCodeSVG value={`${window.location.origin}/?room=${roomId}`} size={240} level="H" includeMargin={true} />
             </div>
             <p className="mt-6 text-sm text-slate-500 dark:text-slate-400 break-all max-w-[280px] mx-auto">
-              {`https://translator-navy-pi.vercel.app/?room=${roomId}`}
+              {`${window.location.origin}/?room=${roomId}`}
             </p>
           </div>
         </div>
