@@ -2640,9 +2640,8 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             </div>
           </div>
 
-          </div>
-
           {/* 底部控制區域：重新排版避免重疊，並具備玻璃擬態質感 */}
+
           <div className="mt-4 flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-50/80 dark:bg-slate-800/50 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-sm shadow-inner transition-all duration-300">
             {/* 左側：語音輸出目標切換 (Output Target) */}
             <div className="flex flex-col gap-1.5">
@@ -2706,10 +2705,10 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 >
                   <Volume2 className="w-5 h-5" />
                 </button>
-              </div>
             </div>
           </div>
         </div>
+
 
 
         {/* 錯誤訊息提示 */}
