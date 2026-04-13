@@ -313,24 +313,27 @@ export default function App() {
 
   useEffect(() => {
     if (userApiKey) {
-      const diagnoseModels = async () => {
+      const diagnoseModelsRaw = async () => {
         try {
-          const ai = new GoogleGenAI({ apiKey: userApiKey, apiVersion: 'v1beta' });
-          const modelsResult: any = await ai.models.list();
-          console.warn("--- BidiGenerateContent Diagnostic: Available Models ---");
-          if (modelsResult && Array.isArray(modelsResult)) {
-             console.warn(modelsResult.filter((m: any) => m.supportedGenerationMethods?.includes('bidiGenerateContent')).map((m: any) => m.name));
-          } else if (modelsResult && modelsResult.models) {
-             console.warn(modelsResult.models.filter((m: any) => m.supportedGenerationMethods?.includes('bidiGenerateContent')).map((m: any) => m.name));
+          // 使用原生 fetch 直接查詢 Google REST API，排除 SDK 版本干擾
+          const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${userApiKey}`;
+          const response = await fetch(url);
+          const data = await response.json();
+          console.warn("--- BidiGenerateContent RAW Diagnostic ---");
+          if (data && data.models) {
+             const liveModels = data.models
+               .filter((m: any) => m.supportedGenerationMethods?.includes('bidiGenerateContent') || m.name?.includes('live'))
+               .map((m: any) => ({ name: m.name, methods: m.supportedGenerationMethods }));
+             console.warn("Supported Live Models:", liveModels);
           } else {
-             console.warn("Raw Models Result:", modelsResult);
+             console.warn("Unexpected REST response:", data);
           }
-          console.warn("---------------------------------------------------------");
+          console.warn("-------------------------------------------");
         } catch (e) {
-          console.error("DIAGNOSTIC CRITICAL FAILURE:", e);
+          console.error("RAW DIAGNOSTIC FAILED:", e);
         }
       };
-      diagnoseModels();
+      diagnoseModelsRaw();
     }
   }, [userApiKey]);
 
