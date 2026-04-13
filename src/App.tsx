@@ -1426,10 +1426,10 @@ export default function App() {
 
       const ai = new GoogleGenAI({ 
         apiKey: effectiveApiKey,
-        apiVersion: 'v1alpha'
+        apiVersion: 'v1beta'
       });
 
-      console.log("--- Gemini Live Engine: Version 2026-04-13-13-43 (Alpha-Pure-Audio) ---");
+      console.log("--- Gemini Live Engine: Version 2026-04-13-14-20 (Beta-Breakthrough) ---");
       const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
       const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
 
@@ -1439,8 +1439,10 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
 
       updateApiUsage('request');
 
-      console.warn("[Diagnostic] Audio Ready. Attempting instant ai.live.connect (Alpha Protocol)...");
-      const newSession = await ai.live.connect({
+      console.warn("[Diagnostic] Audio Ready. Attempting ai.live.connect (v1beta)...");
+      
+      // 關鍵修正：不使用 await 阻塞後續邏輯，改用 then 鍊確保數據管道暢通
+      ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
           responseModalities: ["audio"] as any,
@@ -1453,8 +1455,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
         },
         callbacks: {
           onopen: async () => {
-            console.warn("[Diagnostic] Live API CONNECTION ESTABLISHED (Instant mode)!");
-            // 確保 sessionRef 已經被暫時佔位或在後續正確賦值
+            console.warn("[Diagnostic] Live API SOCKET OPENED!");
             if (audioContextRef.current?.state === 'suspended') {
               await audioContextRef.current.resume();
             }
@@ -1676,6 +1677,12 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             }
           }
         }
+      }).then(session => {
+        sessionRef.current = session;
+        console.warn("[Diagnostic] Live API SESSION ESTABLISHED & ACTIVE!");
+      }).catch(err => {
+        console.error("[Diagnostic] Connection failed:", err);
+        stopLiveSession();
       });
     } catch (err: any) {
       console.error("Failed to start Live API:", err);
