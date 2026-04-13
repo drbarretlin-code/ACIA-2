@@ -290,6 +290,8 @@ export default function App() {
     return localStorage.getItem('audio_output') !== 'false';
   });
   const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'None');
+  const [voiceEngine, setVoiceEngine] = useState<'local' | 'ai'>(() => (localStorage.getItem('voice_engine') as 'local' | 'ai') || 'ai'); // 預設改回 'ai' 以保證初次穩定性
+
 
   // Refs for stable access in async handlers (Socket/Gemini)
   const localLangRef = useRef(localLang);
@@ -343,6 +345,10 @@ export default function App() {
   const recognitionRef = useRef<any>(null); 
   const ttsBufferRef = useRef<string>(""); // 用於緩存尚未成句的文字片段
   const lastSpokenIndexRef = useRef<number>(-1); // 追蹤最後朗讀的 Transcript 索引
+  const ttsTimeoutRef = useRef<any>(null); // 超時強制朗讀定時器
+  const voiceEngineRef = useRef<'local' | 'ai'>(voiceEngine);
+  
+  useEffect(() => { voiceEngineRef.current = voiceEngine; }, [voiceEngine]);
 
 
   useEffect(() => {
@@ -1639,15 +1645,37 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             if (parts) {
               let textContent = "";
               for (const part of parts) {
+                // 如果是高品質模式且有音訊資料，則播放雲端音訊
+                if (part.inlineData?.data && voiceEngineRef.current === 'ai' && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
+                  const isSelf = isRecording; 
+                  if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
+                    playAudioChunk(part.inlineData.data);
+                  }
+                }
+
                 if (part.text) {
                   const translatedChunk = convertToTwIfNeeded(part.text);
                   textContent += translatedChunk;
                   
-                  // 極速朗讀邏輯：一旦偵測到子句結束 (標點符號)，立即觸發本地 TTS
-                  ttsBufferRef.current += translatedChunk;
-                  if (/[。，？！,.?!]/.test(ttsBufferRef.current)) {
-                    speakText(ttsBufferRef.current);
-                    ttsBufferRef.current = ""; // 朗讀後清空緩衝
+                  // 極速模式朗讀邏輯
+                  if (voiceEngineRef.current === 'local') {
+                    ttsBufferRef.current += translatedChunk;
+                    
+                    // 重置超時定時器：如果 2 秒沒新文字，強制朗讀
+                    if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+                    ttsTimeoutRef.current = setTimeout(() => {
+                      if (ttsBufferRef.current.trim()) {
+                        speakText(ttsBufferRef.current);
+                        ttsBufferRef.current = "";
+                      }
+                    }, 2000);
+
+                    // 標點符號觸發
+                    if (/[。，？！,.?!]/.test(ttsBufferRef.current)) {
+                      speakText(ttsBufferRef.current);
+                      ttsBufferRef.current = "";
+                      if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+                    }
                   }
                 }
               }
@@ -1708,6 +1736,14 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                 }
                 return prev;
               });
+
+              console.log("[Diagnostic] Live API turnComplete received");
+              // 對話回合結束時，清空所有剩餘的本地 TTS 緩衝
+              if (voiceEngineRef.current === 'local' && ttsBufferRef.current.trim()) {
+                speakText(ttsBufferRef.current);
+                ttsBufferRef.current = "";
+                if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+              }
             }
 
             if (message.serverContent?.interrupted) {
@@ -1775,6 +1811,14 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       }
     } catch (e) {
       console.warn("AudioContext init/resume failed during gesture:", e);
+    }
+
+    // 啟動錄音時，如果處於靜音模式，提醒使用者或自動切換
+    if (audioOutputMode === 'None' || !isAudioOutputEnabled) {
+      setCustomAlert({ message: "目前處於靜音模式，已自動為您開啟語音朗讀。", type: 'alert' });
+      setIsAudioOutputEnabled(true);
+      setAudioOutputMode('ALL');
+      localStorage.setItem('audio_output_mode', 'ALL');
     }
 
     const newState = !isRecording;
@@ -2579,6 +2623,35 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     )}
                   >
                     {mode === 'None' ? '靜音' : mode === 'Myself' ? '僅自己' : mode === 'ALL' ? '全部' : '僅他人'}
+                  </button>
+                ))}
+              </div>
+
+              {/* 語音引擎切換 (極速 vs 高品質) */}
+              <div className={cn(
+                "absolute right-5 bottom-full mb-2 transition-all duration-300 translate-x-4 flex items-center bg-white dark:bg-slate-800 shadow-xl rounded-full border border-slate-200 dark:border-slate-700 p-1 z-10",
+                showAudioSettings ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+              )}>
+                {(['local', 'ai'] as const).map((eng) => (
+                  <button
+                    key={eng}
+                    onClick={() => {
+                      setVoiceEngine(eng);
+                      localStorage.setItem('voice_engine', eng);
+                      if (eng === 'local' && 'speechSynthesis' in window) {
+                        const u = new SpeechSynthesisUtterance("");
+                        window.speechSynthesis.speak(u);
+                      }
+                    }}
+                    className={cn(
+                      "px-3 py-1 text-[10px] font-bold rounded-full transition-all flex items-center gap-1",
+                      voiceEngine === eng 
+                        ? (eng === 'local' ? "bg-amber-500 text-white" : "bg-blue-600 text-white")
+                        : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    )}
+                  >
+                    {eng === 'local' ? <Zap className="w-3 h-3" /> : <Mic2 className="w-3 h-3" />}
+                    {eng === 'local' ? '極速模式' : '高品質'}
                   </button>
                 ))}
               </div>
