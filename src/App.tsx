@@ -1522,13 +1522,18 @@ export default function App() {
             echoCancellation,
             noiseSuppression,
             autoGainControl,
-            sampleRate: { ideal: 44100 },
             channelCount: 1,
           } 
         });
       } catch (err: any) {
-        console.error("麥克風存取錯誤:", err);
-        throw new Error("無法存取麥克風：" + err.message);
+        console.warn("初次嘗試麥克風存取失敗，嘗試使用基礎參數重試...", err);
+        try {
+          // 降級為最基礎的存取請求
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (retryErr: any) {
+          console.error("麥克風存取完全失敗:", retryErr);
+          throw new Error("無法存取麥克風：" + retryErr.message);
+        }
       }
       mediaStreamRef.current = stream;
       
