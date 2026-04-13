@@ -1652,10 +1652,17 @@ export default function App() {
         }
         const base64 = btoa(binary);
         
-        if (sessionRef.current) {
-          sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+        if (sessionRef.current && isLiveRef.current) {
+          try {
+            sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+          } catch (e) {
+            // WebSocket already closing/closed — stop further sends
+            console.warn("[Audio] Session closed, stopping audio stream.");
+            isLiveRef.current = false;
+          }
         }
       };
+
 
       stream.getTracks().forEach(track => {
         track.onended = () => {
