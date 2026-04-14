@@ -288,7 +288,7 @@ export default function App() {
     return localStorage.getItem('audio_output') !== 'false';
   });
   const [audioOutputMode, setAudioOutputMode] = useState<'None' | 'Myself' | 'ALL' | 'Others'>(() => (localStorage.getItem('audio_output_mode') as 'None' | 'Myself' | 'ALL' | 'Others') || 'ALL');
-  const [voiceEngine, setVoiceEngine] = useState<'local' | 'ai'>(() => (localStorage.getItem('voice_engine') as 'local' | 'ai') || 'ai');
+  // 語音引擎預設鎖定為高品質 AI 模式
 
 
   // Refs for stable access in async handlers (Socket/Gemini)
@@ -362,10 +362,7 @@ export default function App() {
   const ttsBufferRef = useRef<string>(""); // 用於緩存尚未成句的文字片段
   const lastSpokenIndexRef = useRef<number>(-1); // 追蹤最後朗讀的 Transcript 索引
   const ttsTimeoutRef = useRef<any>(null); // 超時強制朗讀定時器
-  const voiceEngineRef = useRef<'local' | 'ai'>(voiceEngine);
   const lastProcessedTranscriptIdRef = useRef<Set<string>>(new Set());
-  
-  useEffect(() => { voiceEngineRef.current = voiceEngine; }, [voiceEngine]);
 
   // 工具函數：繁簡轉換與腳本篩選，提升至元件頂層防止 ReferenceError
   const convertToTwIfNeeded = useCallback((text: string) => {
@@ -788,7 +785,8 @@ export default function App() {
         });
 
         // --- 極速模式本地朗讀邏輯 (支援 Firestore 同步) ---
-        if (voiceEngineRef.current === 'local' && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
+        // --- 跨裝置自動朗讀邏輯 (僅針對他人翻譯) ---
+        if (isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
           // 如果是初次快照，將現有 ID 標記為已處理，避免開啟頁面時朗讀所有歷史紀錄
           if (isFirstSnapshot) {
             snapshot.docs.forEach(doc => lastProcessedTranscriptIdRef.current.add(doc.id));
@@ -802,11 +800,10 @@ export default function App() {
                 if (data.isFinal && data.translated && !lastProcessedTranscriptIdRef.current.has(id)) {
                   const isSelf = data.speakerId === auth.currentUser?.uid;
                   const matchesFilter = (audioOutputMode === 'ALL') || 
-                                       (audioOutputMode === 'Myself' && isSelf) || 
                                        (audioOutputMode === 'Others' && !isSelf);
                   
+                  // 極速模式機械音僅用於朗讀他人翻譯，本地翻譯由高品質 AI 語音處理
                   if (matchesFilter && !isSelf) {
-                    // 根據目標語系進行朗讀。在極速模式下，本地使用者的聲音已由 onmessage 即時路徑處理。
                     speakText(data.translated, data.targetLang);
                   }
                   lastProcessedTranscriptIdRef.current.add(id);
@@ -1795,44 +1792,17 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             if (parts) {
               let textContent = "";
               for (const part of parts) {
-                // 如果是高品質模式且有音訊資料，則播放雲端音訊
-                if (part.inlineData?.data) {
-                  if (voiceEngineRef.current === 'ai' && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
-                    const isSelf = isRecordingRef.current; 
-                    if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
-                      console.log("[Diagnostic] Playing AI high-quality audio chunk...");
-                      playAudioChunk(part.inlineData.data);
-                    }
-                  } else {
-                    console.log("[Diagnostic] Skipping AI audio chunk (voiceEngine is not 'ai' or output disabled)");
+                // 高品質模式：播放雲端 AI 渲染的擬人音訊
+                if (part.inlineData?.data && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
+                  const isSelf = isRecordingRef.current; 
+                  if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
+                    console.log("[Diagnostic] Playing AI high-quality audio chunk...");
+                    playAudioChunk(part.inlineData.data);
                   }
                 }
 
                 if (part.text) {
-                  const translatedChunk = convertToTwIfNeeded(part.text);
-                  textContent += translatedChunk;
-                  
-                  // 極速模式朗讀邏輯
-                  if (voiceEngineRef.current === 'local') {
-                    const targetLang = isRecordingRef.current ? clientLangRef.current : localLangRef.current;
-                    ttsBufferRef.current += translatedChunk;
-                    
-                    // 重置超時定時器：如果 2 秒沒新文字，強制朗讀
-                    if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
-                    ttsTimeoutRef.current = setTimeout(() => {
-                      if (ttsBufferRef.current.trim()) {
-                        speakText(ttsBufferRef.current, targetLang);
-                        ttsBufferRef.current = "";
-                      }
-                    }, 2000);
-
-                    // 標點符號觸發
-                    if (/[。，？！,.?!]/.test(ttsBufferRef.current)) {
-                      speakText(ttsBufferRef.current, targetLang);
-                      ttsBufferRef.current = "";
-                      if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
-                    }
-                  }
+                  textContent += convertToTwIfNeeded(part.text);
                 }
               }
 
@@ -1878,26 +1848,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                     translated: newTranscripts[lastIndex].translated + processedOutText,
                     isTranslating: false 
                   };
-
-                  // [NEW] 支援 outputTranscription 的極速模式朗讀觸發
-                  if (voiceEngineRef.current === 'local') {
-                    const targetLang = isRecordingRef.current ? clientLangRef.current : localLangRef.current;
-                    ttsBufferRef.current += processedOutText;
-                    
-                    if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
-                    ttsTimeoutRef.current = setTimeout(() => {
-                      if (ttsBufferRef.current.trim()) {
-                        speakText(ttsBufferRef.current, targetLang);
-                        ttsBufferRef.current = "";
-                      }
-                    }, 2000);
-
-                    if (/[。，？！,.?!]/.test(ttsBufferRef.current)) {
-                      speakText(ttsBufferRef.current, targetLang);
-                      ttsBufferRef.current = "";
-                      if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
-                    }
-                  }
                 }
                 return newTranscripts;
               });
@@ -1914,13 +1864,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               });
 
               console.log("[Diagnostic] Live API turnComplete received");
-              // 對話回合結束時，清空所有剩餘的本地 TTS 緩衝
-              if (voiceEngineRef.current === 'local' && ttsBufferRef.current.trim()) {
-                const targetLang = isRecordingRef.current ? clientLangRef.current : localLangRef.current;
-                speakText(ttsBufferRef.current, targetLang);
-                ttsBufferRef.current = "";
-                if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
-              }
             }
 
             if (message.serverContent?.interrupted) {
