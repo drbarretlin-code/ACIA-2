@@ -1696,10 +1696,15 @@ export default function App() {
         
         if (sessionRef.current && isLiveRef.current) {
           try {
-            sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+            // [HARDEN] 檢查 WebSocket 狀態，避免在 CLOSING 或 CLOSED 時發送導致錯誤
+            const socket = (sessionRef.current as any).socket;
+            if (socket && socket.readyState === WebSocket.OPEN) {
+              sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
+            } else if (socket && (socket.readyState === WebSocket.CLOSING || socket.readyState === WebSocket.CLOSED)) {
+              if (chunkCount % 50 === 0) console.warn("[Audio] WebSocket is closing/closed, skipping send.");
+            }
           } catch (e) {
-            // WebSocket already closing/closed — stop further sends
-            console.warn("[Audio] Session closed, stopping audio stream.");
+            console.warn("[Audio] Session send error:", e);
             isLiveRef.current = false;
           }
         }
@@ -1728,15 +1733,13 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       sessionRef.current = await ai.live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: {
-          // 核心差異：極速模式回傳純文字供 speechSynthesis 朗讀；高品質模式回傳音訊由雲端渲染
-          responseModalities: voiceEngine === 'local' ? [Modality.TEXT] : [Modality.AUDIO],
-          ...(voiceEngine === 'ai' ? {
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
-            }
-          } : {}),
+          // [FIX 1011] 統一使用 AUDIO 模式配合轉錄，避免極速模式（TEXT）在部分模型上引發伺服器內部錯誤
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceType === 'Men' ? "Puck" : "Aoede" } }
+          },
           inputAudioTranscription: {},
-          ...(voiceEngine === 'ai' ? { outputAudioTranscription: {} } : {}),
+          outputAudioTranscription: {}, // 始終開啟轉錄以支援極速模式的文字朗讀
           systemInstruction: `${systemInstructionContent}\n\n[重要指示]：請以「連續翻譯模式」運作。當使用者在翻譯過程中持續說話時，請務必處理並翻譯所有輸入的語句，不得因中斷而遺漏任何語句。`
         },
 
@@ -1874,6 +1877,26 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                     translated: newTranscripts[lastIndex].translated + processedOutText,
                     isTranslating: false 
                   };
+
+                  // [NEW] 支援 outputTranscription 的極速模式朗讀觸發
+                  if (voiceEngineRef.current === 'local') {
+                    const targetLang = isRecordingRef.current ? clientLangRef.current : localLangRef.current;
+                    ttsBufferRef.current += processedOutText;
+                    
+                    if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+                    ttsTimeoutRef.current = setTimeout(() => {
+                      if (ttsBufferRef.current.trim()) {
+                        speakText(ttsBufferRef.current, targetLang);
+                        ttsBufferRef.current = "";
+                      }
+                    }, 2000);
+
+                    if (/[。，？！,.?!]/.test(ttsBufferRef.current)) {
+                      speakText(ttsBufferRef.current, targetLang);
+                      ttsBufferRef.current = "";
+                      if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+                    }
+                  }
                 }
                 return newTranscripts;
               });
