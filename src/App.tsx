@@ -2042,15 +2042,34 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
     }
   };
 
-  // 監聽語言變更，同步更新本地辨識語系
+  // 監聽語言變更，同步更新本地辨識語系與雲端 Session
   useEffect(() => {
-    if (recognitionRef.current && isRecording) {
-      try {
-        recognitionRef.current.stop();
-        // recognition.onend 會自動抓取最新的 localLangRef 並重新啟動
-      } catch (e) {}
+    let timer: NodeJS.Timeout;
+
+    if (isRecordingRef.current) {
+      // 1. 重啟本地語音辨識
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {}
+      }
+
+      // 2. 重啟 Gemini Live Session 以套用新的 System Instruction
+      if (isLiveRef.current) {
+        console.log("[Diagnostic] Language changed, restarting Live session...");
+        stopLiveSession("language_changed");
+        
+        // 給系統一個極短的時間清理資源，再自動重啟以綁定新語系
+        timer = setTimeout(() => {
+          if (isRecordingRef.current) {
+            startLiveSession();
+          }
+        }, 800);
+      }
     }
-  }, [localLang]);
+
+    return () => clearTimeout(timer);
+  }, [localLang, clientLang]);
 
   return (
     <div className={cn("h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col overflow-hidden transition-colors duration-300", isDarkMode && "dark")}>
