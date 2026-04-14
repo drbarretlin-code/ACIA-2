@@ -741,12 +741,7 @@ export default function App() {
               setIsRecording(data.isSpeakingEnabled);
             }
           }
-          if (data.localLang && data.localLang !== localLangRef.current) {
-            setLocalLang(data.localLang);
-          }
-          if (data.clientLang && data.clientLang !== clientLangRef.current) {
-            setClientLang(data.clientLang);
-          }
+          // 移除從遠端強制覆蓋語系設定，讓每一個與會者（包含訪客）能自主選擇自己的 localLang 與 clientLang
           if (data.isClosed === true) {
             if (user?.uid !== data.creatorId) {
               setCustomAlert({ 
@@ -2201,20 +2196,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                           className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20"
                         />
                       </div>
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 block">Google Cloud API Key (高品質語音)</label>
-                        <input
-                          type="password"
-                          value={userGoogleCloudApiKey}
-                          onChange={(e) => {
-                            setUserGoogleCloudApiKey(e.target.value);
-                            localStorage.setItem('google_cloud_api_key', e.target.value);
-                          }}
-                          placeholder="選填，可與 Gemini Key 共用"
-                          className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20"
-                        />
-                        <p className="text-[10px] text-slate-400 mt-1">啟用 Cloud TTS API 後，他人的翻譯將改為真人擬真配音。</p>
-                      </div>
+                      {/* 依據需求已移除登入畫面的 Google Cloud API Key (高品質語音) 輸入欄位 */}
                     </div>
               <button
                 disabled={!tempName.trim()}
@@ -2736,11 +2718,10 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 <div className="relative">
                   <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                   <div className="flex items-center gap-1">
-                    {!isRoomCreator && !!roomId && <Lock className="w-3 h-3 text-amber-500 mr-1" />}
                     <select 
                       value={localLang}
                       onChange={(e) => setLocalLang(e.target.value)}
-                      disabled={isRecording || (!isRoomCreator && !!roomId)}
+                      disabled={isRecording}
                       className="w-full pl-2 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-80 appearance-none dark:text-slate-200"
                     >
                       {LANGUAGES.map(lang => {
@@ -2765,9 +2746,9 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     setLocalLang(clientLang);
                     setClientLang(temp);
                   }}
-                  disabled={isRecording || (!isRoomCreator && !!roomId)}
+                  disabled={isRecording}
                   className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={!isRoomCreator && !!roomId ? "只有房長可以更換語系" : "互換語系"}
+                  title="互換語系"
                 >
                   <ArrowRightLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                 </button>
@@ -2777,11 +2758,10 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 <div className="relative">
                   <Globe2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                   <div className="flex items-center gap-1">
-                    {!isRoomCreator && !!roomId && <Lock className="w-3 h-3 text-amber-500 mr-1" />}
                     <select 
                       value={clientLang}
                       onChange={(e) => setClientLang(e.target.value)}
-                      disabled={isRecording || (!isRoomCreator && !!roomId)}
+                      disabled={isRecording}
                       className="w-full pl-2 pr-2 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 outline-none transition-all disabled:opacity-80 appearance-none dark:text-slate-200"
                     >
                       {LANGUAGES.map(lang => {
