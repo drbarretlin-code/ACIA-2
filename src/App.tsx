@@ -1748,9 +1748,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             console.warn("[Diagnostic] Live API SOCKET OPENED!");
             isLiveRef.current = true; // [CRITICAL FIX] Enable Path 0 and Stop triggers
             setupSpeechRecognition(); // 啟動本地極速辨識
-            if (audioContextRef.current?.state === 'suspended') {
-              await audioContextRef.current.resume();
-            }
+            // [REMOVE] 不在非 User Gesture 的回呼中執行 resume()，避免瀏覽器警告
           },
           onmessage: (message: any) => {
             console.log("[Diagnostic] Live API onmessage received:", JSON.stringify(message).substring(0, 500));
@@ -1800,10 +1798,15 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               let textContent = "";
               for (const part of parts) {
                 // 如果是高品質模式且有音訊資料，則播放雲端音訊
-                if (part.inlineData?.data && voiceEngineRef.current === 'ai' && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
-                  const isSelf = isRecordingRef.current; 
-                  if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
-                    playAudioChunk(part.inlineData.data);
+                if (part.inlineData?.data) {
+                  if (voiceEngineRef.current === 'ai' && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
+                    const isSelf = isRecordingRef.current; 
+                    if (audioOutputMode === 'ALL' || (audioOutputMode === 'Myself' && isSelf) || (audioOutputMode === 'Others' && !isSelf)) {
+                      console.log("[Diagnostic] Playing AI high-quality audio chunk...");
+                      playAudioChunk(part.inlineData.data);
+                    }
+                  } else {
+                    console.log("[Diagnostic] Skipping AI audio chunk (voiceEngine is not 'ai' or output disabled)");
                   }
                 }
 
@@ -1980,7 +1983,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       
-      // 1. 啟動錄音 Context
+      // [FIX] 為符合瀏覽器自動播放政策，必須在 User Gesture (onClick) 中立即 resume 並建立上下文
       if (!audioContextRef.current) {
         audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
       }
@@ -1988,7 +1991,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
         audioContextRef.current.resume();
       }
 
-      // 2. 啟動播放 Context (高品質 AI 模式使用)
       if (!playbackContextRef.current) {
         playbackContextRef.current = new AudioContextClass({ sampleRate: 24000 });
       }
@@ -1996,8 +1998,16 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
         playbackContextRef.current.resume();
       }
 
-      // 3. 解鎖 SpeechSynthesis (本地極速模式使用)
+      // 播放一段極短的靜音音訊以「永久解鎖」此 Session 的播放權限
+      const silentBuffer = playbackContextRef.current.createBuffer(1, 1, 22050);
+      const silentSource = playbackContextRef.current.createBufferSource();
+      silentSource.buffer = silentBuffer;
+      silentSource.connect(playbackContextRef.current.destination);
+      silentSource.start();
+
+      // 解鎖 SpeechSynthesis (本地極速模式使用)
       if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // 先清除可能卡住的隊列
         const unlockUtterance = new SpeechSynthesisUtterance("");
         unlockUtterance.volume = 0;
         window.speechSynthesis.speak(unlockUtterance);
