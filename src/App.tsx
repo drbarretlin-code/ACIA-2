@@ -364,6 +364,9 @@ export default function App() {
   const lastSpokenIndexRef = useRef<number>(-1); // 追蹤最後朗讀的 Transcript 索引
   const ttsTimeoutRef = useRef<any>(null); // 超時強制朗讀定時器
   const lastProcessedTranscriptIdRef = useRef<Set<string>>(new Set());
+  const reconnectCountRef = useRef<number>(0);
+  const reconnectTimeoutRef = useRef<any>(null);
+  const isFallbackModeRef = useRef<boolean>(false);
 
   // 工具函數：繁簡轉換與腳本篩選，提升至元件頂層防止 ReferenceError
   const convertToTwIfNeeded = useCallback((text: string) => {
@@ -1400,6 +1403,10 @@ export default function App() {
     if (playbackContextRef.current) {
       try {
         if (playbackContextRef.current.state !== 'closed') {
+          // 在關閉前嘗試 suspend 以釋放硬體資源
+          if (playbackContextRef.current.state === 'running') {
+            await playbackContextRef.current.suspend();
+          }
           await playbackContextRef.current.close();
         }
       } catch (e) {
@@ -1408,7 +1415,15 @@ export default function App() {
       playbackContextRef.current = null;
     }
     
-    nextPlayTimeRef.current = 0;
+    if (reason !== "reconnect") {
+      nextPlayTimeRef.current = 0;
+      isFallbackModeRef.current = false;
+      reconnectCountRef.current = 0;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    }
   };
 
   const speakText = async (text: string, lang?: string, retryCount = 0) => {
@@ -1578,27 +1593,90 @@ export default function App() {
 
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
+      let finalTranscript = '';
+
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (!event.results[i].isFinal) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
           interimTranscript += event.results[i][0].transcript;
         }
       }
 
+      // 處理最終結果 (當 Live API 斷線時接管)
+      if (finalTranscript.trim() && isFallbackModeRef.current) {
+        console.log("[Fallback] Final STT detected, manual processing...");
+        const processedText = convertToTwIfNeeded(finalTranscript);
+        
+        // 模擬 handleSendText 的邏輯，但從語音過來
+        const msgId = "fallback-" + Date.now();
+        const sourceId = localLangRef.current;
+        const targetId = clientLangRef.current;
+
+        // 建立正式項目
+        setTranscripts(prev => {
+          // 移除舊的預覽 (如果有)
+          const filtered = prev.filter(t => !t.isLocalStt);
+          return [...filtered, {
+            id: msgId,
+            original: processedText,
+            translated: "",
+            isFinal: true,
+            isTranslating: true,
+            sourceLang: sourceId,
+            targetLang: targetId,
+            createdAt: Date.now(),
+            isLocal: true,
+            ...(userName ? { speakerName: userName } : {})
+          }];
+        });
+
+        // 觸發翻譯與 Firestore 同步
+        (async () => {
+          try {
+            const effectiveKey = (user && roomCreatorId && user.uid === roomCreatorId) ? userApiKey : (roomApiKey || userApiKey);
+            const translated = await translateTextFree(processedText, sourceId, targetId);
+            
+            setTranscripts(prev => prev.map(t => 
+              t.id === msgId ? { ...t, translated, isTranslating: false } : t
+            ));
+
+            // 同步到 Firestore
+            if (roomId) {
+              await setDoc(doc(db, 'rooms', roomId, 'transcripts', msgId), {
+                original: processedText,
+                translated,
+                isFinal: true,
+                sourceLang: sourceId,
+                targetLang: targetId,
+                createdAt: serverTimestamp(),
+                speakerId: auth.currentUser?.uid,
+                speakerName: userName || '匿名'
+              });
+            }
+
+            // 觸發備援語音
+            speakText(translated, targetId);
+          } catch (e) {
+            console.error("[Fallback] Translation failed:", e);
+          }
+        })();
+      }
+
+      // 處理即時預覽
       if (interimTranscript.trim()) {
         const processedText = convertToTwIfNeeded(interimTranscript);
         setTranscripts(prev => {
           const last = prev[prev.length - 1];
-          // 如果最後一條是非最終狀態且是本地 STT 或 Gemini 剛開出的空項目
           if (last && !last.isFinal && (last.isLocalStt || (last.isLocal && !last.original))) {
             const newTranscripts = [...prev];
             newTranscripts[prev.length - 1] = { 
               ...last, 
               original: processedText,
-              isLocalStt: true // 標記為極速預覽
+              isLocalStt: true 
             };
             return newTranscripts;
           } else if (!last || last.isFinal) {
-            // 建立新的極速預覽項目
             return [...prev, {
               id: "local-stt-" + Date.now().toString(),
               original: processedText,
@@ -1809,9 +1887,14 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
         callbacks: {
           onopen: async () => {
             console.warn("[Diagnostic] Live API SOCKET OPENED!");
-            isLiveRef.current = true; // [CRITICAL FIX] Enable Path 0 and Stop triggers
-            setupSpeechRecognition(); // 啟動本地極速辨識
-            // [REMOVE] 不在非 User Gesture 的回呼中執行 resume()，避免瀏覽器警告
+            isLiveRef.current = true; 
+            isFallbackModeRef.current = false;
+            reconnectCountRef.current = 0;
+            if (reconnectTimeoutRef.current) {
+              clearTimeout(reconnectTimeoutRef.current);
+              reconnectTimeoutRef.current = null;
+            }
+            setupSpeechRecognition(); 
           },
           onmessage: (message: any) => {
             console.log("[Diagnostic] Live API onmessage received:", JSON.stringify(message).substring(0, 500));
@@ -1950,24 +2033,36 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             }
           },
           onclose: (event: any) => {
-            console.log("Live API connection closed, attempting to reconnect...", event);
+            console.log(`Live API closed (Code: ${event?.code}), attempting recovery...`, event);
+            isFallbackModeRef.current = true;
+            
             if (isLiveRef.current) {
-              const wasLive = isLiveRef.current;
-              stopLiveSession("socket_onclose");
-              const isFatalError = event?.code === 1008 || event?.code === 1011 || event?.code === 400 || event?.code === 403 || event?.code === 404;
-              if (wasLive && !isFatalError) {
-                setTimeout(() => { if (isRecordingRef.current) startLiveSession(); }, 2000);
-              } else if (isFatalError && isRecordingRef.current) {
-                 console.log("[Diagnostic] setIsRecording(false) from socket_onclose_fatal");
-                 setIsRecording(false);
-                 setCustomAlert({ message: `伺服器連線發生致命錯誤 (${event?.code})，已自動停止錄音。`, type: 'alert' });
+              stopLiveSession("reconnect");
+              
+              // 如果使用者還在錄音模式，實作指數退避重連
+              if (isRecordingRef.current) {
+                const backoffMs = Math.min(1000 * Math.pow(2, reconnectCountRef.current), 30000);
+                reconnectCountRef.current++;
+                
+                console.log(`[Backup] Entering Fallback Mode. Retrying Live session in ${backoffMs}ms... (Attempt ${reconnectCountRef.current})`);
+                
+                // 僅在第一次斷線時提示，避免頻繁彈窗
+                if (reconnectCountRef.current === 1) {
+                  toast.error("即時語音連線不穩，系統已自動切換至本地備援模式。", { id: 'voice-fallback' });
+                }
+
+                reconnectTimeoutRef.current = setTimeout(() => {
+                  if (isRecordingRef.current) {
+                    startLiveSession();
+                  }
+                }, backoffMs);
               }
             }
           },
           onerror: (err: any) => {
             console.error("Live API Error:", err);
-            setErrorMsg("連線發生錯誤");
-            stopLiveSession("socket_onerror");
+            isFallbackModeRef.current = true;
+            // onerror 通常會伴隨 onclose，這裡僅作紀錄與標記
           }
         }
       });
