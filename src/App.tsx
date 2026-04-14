@@ -363,6 +363,7 @@ export default function App() {
   const lastSpokenIndexRef = useRef<number>(-1); // 追蹤最後朗讀的 Transcript 索引
   const ttsTimeoutRef = useRef<any>(null); // 超時強制朗讀定時器
   const voiceEngineRef = useRef<'local' | 'ai'>(voiceEngine);
+  const lastProcessedTranscriptIdRef = useRef<Set<string>>(new Set());
   
   useEffect(() => { voiceEngineRef.current = voiceEngine; }, [voiceEngine]);
 
@@ -778,13 +779,44 @@ export default function App() {
       });
 
       const qTranscripts = query(collection(db, 'rooms', roomId, 'transcripts'), orderBy('timestamp', 'asc'));
+      let isFirstSnapshot = true;
       unsubTranscripts = onSnapshot(qTranscripts, (snapshot) => {
         console.log("Transcript snapshot received, count:", snapshot.size);
         const firestoreTranscripts: Transcript[] = [];
         snapshot.forEach(doc => {
-          console.log("Transcript doc:", doc.id, doc.data());
           firestoreTranscripts.push({ id: doc.id, ...doc.data() } as Transcript);
         });
+
+        // --- 極速模式本地朗讀邏輯 (支援 Firestore 同步) ---
+        if (voiceEngineRef.current === 'local' && isAudioOutputEnabledRef.current && audioOutputMode !== 'None') {
+          // 如果是初次快照，將現有 ID 標記為已處理，避免開啟頁面時朗讀所有歷史紀錄
+          if (isFirstSnapshot) {
+            snapshot.docs.forEach(doc => lastProcessedTranscriptIdRef.current.add(doc.id));
+            isFirstSnapshot = false;
+          } else {
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === "added" || (change.type === "modified")) {
+                const data = change.doc.data() as Transcript;
+                const id = change.doc.id;
+
+                if (data.isFinal && data.translated && !lastProcessedTranscriptIdRef.current.has(id)) {
+                  const isSelf = data.speakerId === auth.currentUser?.uid;
+                  const matchesFilter = (audioOutputMode === 'ALL') || 
+                                       (audioOutputMode === 'Myself' && isSelf) || 
+                                       (audioOutputMode === 'Others' && !isSelf);
+                  
+                  if (matchesFilter && !isSelf) {
+                    // 根據目標語系進行朗讀。在極速模式下，本地使用者的聲音已由 onmessage 即時路徑處理。
+                    speakText(data.translated, data.targetLang);
+                  }
+                  lastProcessedTranscriptIdRef.current.add(id);
+                }
+              }
+            });
+          }
+        } else {
+          isFirstSnapshot = false;
+        }
         
         // 智能合併：Firestore 資料為主，本地非最終狀態為輔
         setTranscripts(prev => {
@@ -804,7 +836,6 @@ export default function App() {
             const timeB = b.createdAt || b.timestamp?.toMillis() || 0;
             return timeA - timeB;
           });
-          console.log("Merged transcripts:", merged);
           return merged;
         });
       }, (error) => {
@@ -1448,13 +1479,24 @@ export default function App() {
       console.warn(`[TTS] No suitable voice found for ${targetLang}, using default browser voice.`);
     }
 
+    utterance.onstart = () => {
+      console.log(`[TTS] Started speaking: "${text.substring(0, 30)}..."`);
+    };
+
+    utterance.onend = () => {
+      console.log(`[TTS] Finished speaking.`);
+    };
+
     utterance.onerror = (event) => {
       console.error(`[TTS] Error speaking text: ${event.error}`, event);
     };
 
     try {
+      // 修復 Chrome/Safari 死鎖 Bug：在 cancel 與 speak 之間增加一個短暫延遲
       window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
+      setTimeout(() => {
+        window.speechSynthesis.speak(utterance);
+      }, 50);
     } catch (e) {
       console.error("[TTS] Failed to execute speak():", e);
     }
