@@ -1623,6 +1623,7 @@ export default function App() {
       // 如果還在錄音，則重啟辨識以維持連貫
       if (isRecordingRef.current && recognitionRef.current) {
         try {
+          recognitionRef.current.lang = localLangRef.current || 'zh-TW'; // 確保閉包不會卡在舊語系
           recognitionRef.current.start();
         } catch (e) {}
       }
@@ -1776,8 +1777,8 @@ export default function App() {
       console.log("[Diagnostic] setIsRecording(true) from startLiveSession");
 
       const ai = new GoogleGenAI({ apiKey: effectiveApiKey });
-      const localName = LANGUAGES.find(l => l.id === localLang)?.name || localLang;
-      const clientName = LANGUAGES.find(l => l.id === clientLang)?.name || clientLang;
+      const localName = LANGUAGES.find(l => l.id === localLangRef.current)?.name || localLangRef.current;
+      const clientName = LANGUAGES.find(l => l.id === clientLangRef.current)?.name || clientLangRef.current;
 
       const systemInstructionContent = `You are a rapid real-time simultaneous interpreter.
 The two authorized languages are: ${localName} and ${clientName}.
