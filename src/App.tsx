@@ -448,10 +448,10 @@ export default function App() {
   }, [userApiKey]);
 
   useEffect(() => {
-    if (isRecording) {
-      startLiveSession();
-    } else {
-      stopLiveSession("isRecording_false");
+    // [iOS FIX] 僅在非錄音中且 state 被外部（如房長）改為 false 時進行停止
+    // 啟動邏輯已移至 toggleRecording 以確保 User Gesture
+    if (!isRecording && isLiveRef.current) {
+      stopLiveSession("remote_stop_or_state_sync");
     }
   }, [isRecording, userApiKey]);
 
@@ -849,7 +849,11 @@ export default function App() {
     try {
       if (!audioContextRef.current) {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+        try {
+          audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+        } catch(e) {
+          audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive' });
+        }
       }
       if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
@@ -912,7 +916,11 @@ export default function App() {
     try {
       if (!audioContextRef.current) {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+        try {
+          audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+        } catch(e) {
+          audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive' });
+        }
       }
       if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
         await audioContextRef.current.resume();
@@ -1657,7 +1665,11 @@ export default function App() {
       let audioCtx = audioContextRef.current;
       
       if (!audioCtx || audioCtx.state === 'closed') {
-        audioCtx = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+        try {
+          audioCtx = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+        } catch(e) {
+          audioCtx = new AudioContextClass({ latencyHint: 'interactive' });
+        }
         audioContextRef.current = audioCtx;
       }
       
@@ -1982,14 +1994,22 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       
       // [FIX] 為符合瀏覽器自動播放政策，必須在 User Gesture (onClick) 中立即 resume 並建立上下文
       if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+        try {
+          audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive', sampleRate: 16000 });
+        } catch(e) {
+          audioContextRef.current = new AudioContextClass({ latencyHint: 'interactive' });
+        }
       }
       if (audioContextRef.current.state === 'suspended') {
         audioContextRef.current.resume();
       }
 
       if (!playbackContextRef.current) {
-        playbackContextRef.current = new AudioContextClass({ sampleRate: 24000 });
+        try {
+          playbackContextRef.current = new AudioContextClass({ sampleRate: 24000 });
+        } catch(e) {
+          playbackContextRef.current = new AudioContextClass();
+        }
       }
       if (playbackContextRef.current.state === 'suspended') {
         playbackContextRef.current.resume();
@@ -2026,6 +2046,13 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
     const newState = !isRecording;
     console.log(`[Diagnostic] setIsRecording(${newState}) from toggleRecording`);
     setIsRecording(newState);
+
+    // [iOS/WebKit CRITICAL FIX] 必須在使用者點擊的同一個 Call Stack 中觸發 getUserMedia
+    if (newState) {
+      startLiveSession();
+    } else {
+      stopLiveSession("user_stop");
+    }
     
     if (roomId) {
       try {
