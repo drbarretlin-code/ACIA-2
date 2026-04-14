@@ -1408,7 +1408,7 @@ export default function App() {
     nextPlayTimeRef.current = 0;
   };
 
-  const speakText = (text: string, lang?: string, retryCount = 0) => {
+  const speakText = async (text: string, lang?: string, retryCount = 0) => {
     if (!('speechSynthesis' in window)) return;
     if (!text.trim()) return;
     
