@@ -239,6 +239,7 @@ export default function App() {
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [userGoogleCloudApiKey, setUserGoogleCloudApiKey] = useState(() => localStorage.getItem('google_cloud_api_key') || '');
   const [apiTier, setApiTier] = useState<'free' | 'paid'>(() => (localStorage.getItem('gemini_api_tier') as 'free' | 'paid') || 'free');
   const [voiceType, setVoiceType] = useState<'Men' | 'Women'>(() => (localStorage.getItem('voice_type') as 'Men' | 'Women') || 'Men');
   const [roomApiKey, setRoomApiKey] = useState<string | null>(null);
@@ -1430,6 +1431,65 @@ export default function App() {
     // 取得目標語言
     const targetLang = lang || clientLangRef.current;
     
+    // Google Cloud TTS 語音模型對應表
+    const CLOUD_VOICE_MAP: { [key: string]: string } = {
+      'zh-TW': 'zh-TW-Neural2-A',
+      'zh-CN': 'zh-CN-Neural2-A',
+      'en-US': 'en-US-Neural2-F',
+      'en-GB': 'en-GB-Neural2-B',
+      'ja-JP': 'ja-JP-Neural2-B',
+      'ko-KR': 'ko-KR-Neural2-A',
+      'fr-FR': 'fr-FR-Neural2-A',
+      'de-DE': 'de-DE-Neural2-D',
+      'es-ES': 'es-ES-Neural2-C',
+      'vi-VN': 'vi-VN-Neural2-A',
+      'th-TH': 'th-TH-Neural2-A',
+      'id-ID': 'id-ID-Neural2-A'
+    };
+
+    const speakWithCloudTTS = async (text: string, langCode: string) => {
+      const apiKey = userGoogleCloudApiKey || userApiKey; 
+      if (!apiKey) return false;
+
+      try {
+        const body = {
+          input: { text },
+          voice: { 
+            languageCode: langCode,
+            name: CLOUD_VOICE_MAP[langCode] || `${langCode.split('-')[0]}-Standard-A` 
+          },
+          audioConfig: { audioEncoding: 'MP3' }
+        };
+
+        const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (!response.ok) throw new Error('TTS API request failed');
+
+        const data = await response.json();
+        if (data.audioContent) {
+          const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
+          audio.play();
+          return true;
+        }
+        return false;
+      } catch (e) {
+        console.error("[TTS] Cloud TTS error:", e);
+        return false;
+      }
+    };
+
+    // 優先嘗試雲端高品質 TTS
+    if (userGoogleCloudApiKey || userApiKey) {
+      console.log(`[TTS] Attempting Cloud TTS for: ${targetLang}`);
+      const success = await speakWithCloudTTS(text, targetLang);
+      if (success) return;
+      console.warn("[TTS] Cloud TTS failed, falling back to local SpeechSynthesis");
+    }
+    
     // 取得語音清單
     let voices = window.speechSynthesis.getVoices();
     
@@ -2110,6 +2170,32 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                 onChange={(e) => setTempName(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               />
+              <div className="space-y-4">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 block">Gemini API Key</label>
+                        <input
+                          type="password"
+                          value={userApiKey}
+                          onChange={(e) => setUserApiKey(e.target.value)}
+                          placeholder="AIza..."
+                          className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 block">Google Cloud API Key (高品質語音)</label>
+                        <input
+                          type="password"
+                          value={userGoogleCloudApiKey}
+                          onChange={(e) => {
+                            setUserGoogleCloudApiKey(e.target.value);
+                            localStorage.setItem('google_cloud_api_key', e.target.value);
+                          }}
+                          placeholder="選填，可與 Gemini Key 共用"
+                          className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">啟用 Cloud TTS API 後，他人的翻譯將改為真人擬真配音。</p>
+                      </div>
+                    </div>
               <button
                 disabled={!tempName.trim()}
                 onClick={() => {
@@ -2438,29 +2524,37 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                     <input
                       type={showApiKey ? "text" : "password"}
                       value={userApiKey}
-                      onChange={(e) => setUserApiKey(e.target.value)}
+                      onChange={(e) => {
+                        setUserApiKey(e.target.value);
+                        localStorage.setItem('gemini_api_key', e.target.value);
+                      }}
                       className="w-full pl-4 pr-24 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-sm"
-                      placeholder="輸入您的 API Key"
+                      placeholder="Gemini API Key"
                     />
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                       <button
                         onClick={() => setShowApiKey(!showApiKey)}
                         className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors text-slate-500"
-                        title={showApiKey ? "隱藏" : "顯示"}
                       >
                         {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
-                      <button
-                        onClick={() => setUserApiKey('')}
-                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors text-red-500"
-                        title="清除"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    設定 API 金鑰以啟用翻譯功能。
+
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      value={userGoogleCloudApiKey}
+                      onChange={(e) => {
+                        setUserGoogleCloudApiKey(e.target.value);
+                        localStorage.setItem('google_cloud_api_key', e.target.value);
+                      }}
+                      className="w-full pl-4 pr-12 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-sm"
+                      placeholder="Google Cloud API Key (高品質語音)"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    設定後，他人的譯文將以雲端 Neural 近真人音訊朗讀。
                   </p>
                 </div>
 
