@@ -1696,16 +1696,14 @@ export default function App() {
         
         if (sessionRef.current && isLiveRef.current) {
           try {
-            // [HARDEN] 檢查 WebSocket 狀態，避免在 CLOSING 或 CLOSED 時發送導致錯誤
-            const socket = (sessionRef.current as any).socket;
-            if (socket && socket.readyState === WebSocket.OPEN) {
-              sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
-            } else if (socket && (socket.readyState === WebSocket.CLOSING || socket.readyState === WebSocket.CLOSED)) {
-              if (chunkCount % 50 === 0) console.warn("[Audio] WebSocket is closing/closed, skipping send.");
-            }
+            // [FIX] 移除先前錯誤的 .socket 內部狀態檢查，恢復正常發送
+            sessionRef.current.sendRealtimeInput({ audio: { mimeType: "audio/pcm;rate=16000", data: base64 } });
           } catch (e) {
-            console.warn("[Audio] Session send error:", e);
-            isLiveRef.current = false;
+            // 如果連線已斷開，標記停止發送，避免後續 chunk 重複報錯
+            if (isLiveRef.current) {
+              console.warn("[Audio] Session stream error (WebSocket closed?):", e);
+              isLiveRef.current = false;
+            }
           }
         }
       };
