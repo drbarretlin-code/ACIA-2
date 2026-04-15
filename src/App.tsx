@@ -13,6 +13,9 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import toast, { Toaster } from 'react-hot-toast';
 import { translations } from './translations';
 import { translateText, translateTextStream, translateTextFree } from './lib/translation-service';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { MANUAL_LANGUAGES, getManualLangForLocale, type ManualLangCode } from './manualsData';
 
 // 獨立的 TranscriptItem 元件，使用 React.memo 優化渲染
 const TranscriptItem = React.memo(({ t }: { t: any }) => (
@@ -264,6 +267,10 @@ export default function App() {
   
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const [manualLang, setManualLang] = useState<ManualLangCode>('en-US');
+  const [manualMarkdown, setManualMarkdown] = useState('');
+  const [manualLoading, setManualLoading] = useState(false);
 
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'Equipment Department');
@@ -303,6 +310,25 @@ export default function App() {
   useEffect(() => { localLangRef.current = localLang; }, [localLang]);
   useEffect(() => { clientLangRef.current = clientLang; }, [clientLang]);
   useEffect(() => { isAudioOutputEnabledRef.current = isAudioOutputEnabled; }, [isAudioOutputEnabled]);
+
+  // Dynamic manual content fetch
+  useEffect(() => {
+    if (!showManual) return;
+    let cancelled = false;
+    setManualLoading(true);
+    fetch(`${import.meta.env.BASE_URL}manuals/${manualLang}.md`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+      })
+      .then(text => { if (!cancelled) setManualMarkdown(text); })
+      .catch(err => {
+        console.error('[Manual] Failed to load:', err);
+        if (!cancelled) setManualMarkdown(`> [!WARNING]\n> Failed to load manual content. Please check your network connection.`);
+      })
+      .finally(() => { if (!cancelled) setManualLoading(false); });
+    return () => { cancelled = true; };
+  }, [showManual, manualLang]);
   
   // Socket.io Ref
 
@@ -2422,6 +2448,12 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               >
                 {getUiText('confirmAndEnter')}
               </button>
+              <button
+                onClick={() => { setManualLang(getManualLangForLocale(uiLang)); setShowManual(true); }}
+                className="w-full py-2.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-xl transition-all flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-800"
+              >
+                <Info className="w-4 h-4" /> User Manual
+              </button>
             </div>
           </div>
         </div>
@@ -2508,6 +2540,12 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                   className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-[0.98] flex items-center justify-center gap-2"
                 >
                   <Users className="w-5 h-5" /> {getUiText('createRoomBtn')}
+                </button>
+                <button
+                  onClick={() => { setManualLang(getManualLangForLocale(uiLang)); setShowManual(true); }}
+                  className="w-full py-2.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-xl transition-all flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-800"
+                >
+                  <Info className="w-4 h-4" /> User Manual
                 </button>
               </div>
               
@@ -2596,6 +2634,13 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               </span>
             </div>
 
+            <button
+              onClick={() => { setManualLang(getManualLangForLocale(uiLang)); setShowManual(true); }}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+              title="User Manual"
+            >
+              <Info className="w-5 h-5 text-blue-500" />
+            </button>
             <button 
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
@@ -3268,6 +3313,98 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
         )}
 
       </main>
+
+      {/* User Manual Modal */}
+      {showManual && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[300] p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <Info className="w-5 h-5 text-blue-500" />
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">User Manual</h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <select
+                  value={manualLang}
+                  onChange={(e) => setManualLang(e.target.value as ManualLangCode)}
+                  className="text-sm bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  {MANUAL_LANGUAGES.map(lang => (
+                    <option key={lang.code} value={lang.code}>{lang.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setShowManual(false)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 prose prose-slate dark:prose-invert prose-sm max-w-none
+              prose-table:border-collapse prose-table:w-full
+              prose-th:border prose-th:border-slate-300 dark:prose-th:border-slate-600 prose-th:px-3 prose-th:py-2 prose-th:bg-slate-100 dark:prose-th:bg-slate-800 prose-th:text-left prose-th:text-xs prose-th:font-semibold
+              prose-td:border prose-td:border-slate-300 dark:prose-td:border-slate-600 prose-td:px-3 prose-td:py-2 prose-td:text-sm
+              prose-blockquote:border-l-4 prose-blockquote:pl-4 prose-blockquote:py-2 prose-blockquote:my-4 prose-blockquote:rounded-r-lg
+              [&_blockquote:has(p:first-child:is([data-note]))]:border-blue-400 [&_blockquote:has(p:first-child:is([data-note]))]:bg-blue-50/50
+              custom-scrollbar
+            ">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  blockquote: ({ children, ...props }) => {
+                    const text = String(children);
+                    let borderColor = 'border-slate-300 dark:border-slate-600';
+                    let bgColor = 'bg-transparent';
+                    let icon = '';
+                    if (text.includes('[!NOTE]')) {
+                      borderColor = 'border-blue-400'; bgColor = 'bg-blue-50 dark:bg-blue-950/30'; icon = '\u2139\uFE0F';
+                    } else if (text.includes('[!IMPORTANT]')) {
+                      borderColor = 'border-purple-400'; bgColor = 'bg-purple-50 dark:bg-purple-950/30'; icon = '\u2757';
+                    } else if (text.includes('[!WARNING]')) {
+                      borderColor = 'border-amber-400'; bgColor = 'bg-amber-50 dark:bg-amber-950/30'; icon = '\u26A0\uFE0F';
+                    } else if (text.includes('[!CAUTION]')) {
+                      borderColor = 'border-red-400'; bgColor = 'bg-red-50 dark:bg-red-950/30'; icon = '\uD83D\uDED1';
+                    } else if (text.includes('[!TIP]')) {
+                      borderColor = 'border-green-400'; bgColor = 'bg-green-50 dark:bg-green-950/30'; icon = '\uD83D\uDCA1';
+                    }
+                    return (
+                      <blockquote className={`border-l-4 ${borderColor} ${bgColor} pl-4 pr-3 py-2 my-4 rounded-r-lg not-prose`} {...props}>
+                        <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                          {icon && <span className="mr-1">{icon}</span>}
+                          {React.Children.map(children, child => {
+                            if (React.isValidElement(child) && child.type === 'p') {
+                              const pText = String((child as any).props?.children || '');
+                              const cleaned = pText.replace(/\[!(NOTE|IMPORTANT|WARNING|CAUTION|TIP)\]\s*/g, '');
+                              return <p className="my-1">{cleaned}</p>;
+                            }
+                            return child;
+                          })}
+                        </div>
+                      </blockquote>
+                    );
+                  },
+                  table: ({ children, ...props }) => (
+                    <div className="overflow-x-auto my-4">
+                      <table className="w-full border-collapse text-sm" {...props}>{children}</table>
+                    </div>
+                  ),
+                }}
+              >
+                {manualLoading ? '' : manualMarkdown}
+              </ReactMarkdown>
+              {manualLoading && (
+                <div className="flex items-center justify-center py-20">
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
