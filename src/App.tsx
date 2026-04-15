@@ -367,6 +367,7 @@ export default function App() {
   const reconnectCountRef = useRef<number>(0);
   const reconnectTimeoutRef = useRef<any>(null);
   const isFallbackModeRef = useRef<boolean>(false);
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
 
   // 工具函數：繁簡轉換與腳本篩選，提升至元件頂層防止 ReferenceError
   const convertToTwIfNeeded = useCallback((text: string) => {
@@ -1199,7 +1200,6 @@ export default function App() {
           t.id === msgId ? { ...t, isTranslating: false } : t
         ));
         setIsTranslatingText(false);
-        setIsNoiseShieldActive(false);
         return;
       } catch (streamErr: any) {
         console.warn("[handleSendText] Path 2 failed. Falling back to Path 3 (Standard REST)...", streamErr.message);
@@ -1350,25 +1350,20 @@ export default function App() {
       console.log(`[Diagnostic] Room session stopped (Reason: ${reason}), but not closing room automatically.`);
     }
 
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (sessionRef.current) {
-      try {
-        sessionRef.current.close();
-      } catch (e) {
-        console.error("Error closing session:", e);
-      }
-      sessionRef.current = null;
-    }
+    const isSoftStop = reason === "reconnect" || reason === "language_changed";
 
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.onend = null;
-        recognitionRef.current.stop();
-      } catch (e) {}
-      recognitionRef.current = null;
+    if (!isSoftStop) {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.onend = null;
+          recognitionRef.current.stop();
+        } catch (e) {}
+        recognitionRef.current = null;
+      }
     }
 
     if (processorRef.current) {
@@ -1415,9 +1410,19 @@ export default function App() {
       playbackContextRef.current = null;
     }
     
+    if (sessionRef.current) {
+      try {
+        sessionRef.current.close();
+      } catch (e) {
+        console.error("Error closing session:", e);
+      }
+      sessionRef.current = null;
+    }
+    
     if (reason !== "reconnect") {
       nextPlayTimeRef.current = 0;
       isFallbackModeRef.current = false;
+      setIsFallbackMode(false);
       reconnectCountRef.current = 0;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -1854,7 +1859,43 @@ export default function App() {
 
       stream.getTracks().forEach(track => {
         track.onended = () => {
-          stopLiveSession();
+          console.warn("[Track] MediaStreamTrack ended (possibly background/lockscreen).");
+          // 不直接硬停止，改為嘗試軟性恢復
+          if (isRecordingRef.current && isLiveRef.current) {
+            // 關閉 Live 但保留錄音狀態，讓系統自動重連
+            stopLiveSession("reconnect");
+            isFallbackModeRef.current = true;
+            setIsFallbackMode(true);
+            
+            // 嘗試重新取得麥克風（使用者回到前景時）
+            const retryMic = setTimeout(async () => {
+              if (isRecordingRef.current) {
+                try {
+                  const newStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                      echoCancellation: true,
+                      noiseSuppression: true,
+                      autoGainControl: true
+                    }
+                  });
+                  mediaStreamRef.current = newStream;
+                  console.log("[Track] Microphone re-acquired after track ended.");
+                  startLiveSession();
+                } catch (e) {
+                  console.error("[Track] Failed to re-acquire microphone:", e);
+                  setIsRecording(false);
+                  stopLiveSession("mic_lost");
+                  toast('麥克風已中斷，請重新啟動錄音。', {
+                    id: 'mic-lost',
+                    icon: '🎙️',
+                    duration: 5000
+                  });
+                }
+              }
+            }, 2000); // 等待 2 秒讓瀏覽器回到前景
+          } else {
+            stopLiveSession("track_ended");
+          }
         };
       });
 
@@ -1889,12 +1930,18 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             console.warn("[Diagnostic] Live API SOCKET OPENED!");
             isLiveRef.current = true; 
             isFallbackModeRef.current = false;
+            setIsFallbackMode(false);
             reconnectCountRef.current = 0;
             if (reconnectTimeoutRef.current) {
               clearTimeout(reconnectTimeoutRef.current);
               reconnectTimeoutRef.current = null;
             }
-            setupSpeechRecognition(); 
+            setupSpeechRecognition();
+            // 重連成功後清除備援提示
+            toast.dismiss('voice-fallback');
+            if (reconnectCountRef.current > 0) {
+              toast.success("雲端連線已恢復，已切換回高品質即時翻譯模式。", { id: 'voice-restored', duration: 3000 });
+            } 
           },
           onmessage: (message: any) => {
             console.log("[Diagnostic] Live API onmessage received:", JSON.stringify(message).substring(0, 500));
@@ -2033,35 +2080,73 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
             }
           },
           onclose: (event: any) => {
-            console.log(`Live API closed (Code: ${event?.code}), attempting recovery...`, event);
-            isFallbackModeRef.current = true;
+            const closeCode = event?.code || 0;
+            const closeReason = event?.reason || '';
+            console.log(`[Live API] WebSocket closed. Code: ${closeCode}, Reason: ${closeReason}`);
             
-            if (isLiveRef.current) {
-              stopLiveSession("reconnect");
+            if (!isLiveRef.current) return; // 已被其他流程處理
+            
+            // 依據 close code 分類處理
+            let toastMessage = '';
+            let toastIcon = '⚡';
+            let shouldReconnect = true;
+            
+            if (closeCode === 1000) {
+              // 正常關閉：Session 到期或伺服器主動結束
+              toastMessage = '翻譯工作階段已結束，系統正在自動重新建立連線。';
+              toastIcon = '🔄';
+            } else if (closeCode === 1011) {
+              // 伺服器內部錯誤：Rate Limit 或容量不足
+              toastMessage = 'API 暫時不可用（可能已達使用上限），已切換至本地模式。';
+              toastIcon = '⏳';
+            } else if (closeCode === 1006) {
+              // 異常斷線：實際的網路不穩定
+              toastMessage = '連線暫時中斷，已切換至本地模式。語音與文字輸入仍可正常使用。';
+              toastIcon = '⚡';
+            } else {
+              // 其他未知原因
+              toastMessage = `連線已關閉（代碼 ${closeCode}），已切換至本地模式。`;
+              toastIcon = '⚡';
+            }
+            
+            isFallbackModeRef.current = true;
+            setIsFallbackMode(true);
+            stopLiveSession("reconnect");
+            
+            // 確保本地 STT 持續運行
+            if (isRecordingRef.current && !recognitionRef.current) {
+              console.log("[Fallback] Re-initializing local STT after disconnect...");
+              setupSpeechRecognition();
+            }
+            
+            // 如果使用者還在錄音模式，實作指數退避重連
+            if (isRecordingRef.current && shouldReconnect) {
+              const backoffMs = Math.min(1000 * Math.pow(2, reconnectCountRef.current), 30000);
+              reconnectCountRef.current++;
               
-              // 如果使用者還在錄音模式，實作指數退避重連
-              if (isRecordingRef.current) {
-                const backoffMs = Math.min(1000 * Math.pow(2, reconnectCountRef.current), 30000);
-                reconnectCountRef.current++;
-                
-                console.log(`[Backup] Entering Fallback Mode. Retrying Live session in ${backoffMs}ms... (Attempt ${reconnectCountRef.current})`);
-                
-                // 僅在第一次斷線時提示，避免頻繁彈窗
-                if (reconnectCountRef.current === 1) {
-                  toast.error("即時語音連線不穩，系統已自動切換至本地備援模式。", { id: 'voice-fallback' });
-                }
-
-                reconnectTimeoutRef.current = setTimeout(() => {
-                  if (isRecordingRef.current) {
-                    startLiveSession();
-                  }
-                }, backoffMs);
+              console.log(`[Fallback] Retrying in ${backoffMs}ms (Attempt ${reconnectCountRef.current}, Code: ${closeCode})`);
+              
+              // 僅在第一次斷線時提示
+              if (reconnectCountRef.current === 1) {
+                toast(toastMessage, {
+                  id: 'voice-fallback',
+                  icon: toastIcon,
+                  duration: 6000,
+                  style: { background: '#FEF3C7', color: '#92400E', border: '1px solid #F59E0B' }
+                });
               }
+
+              reconnectTimeoutRef.current = setTimeout(() => {
+                if (isRecordingRef.current) {
+                  startLiveSession();
+                }
+              }, backoffMs);
             }
           },
           onerror: (err: any) => {
             console.error("Live API Error:", err);
             isFallbackModeRef.current = true;
+            setIsFallbackMode(true);
             // onerror 通常會伴隨 onclose，這裡僅作紀錄與標記
           }
         }
@@ -2903,10 +2988,17 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
               <div className="flex items-center gap-2">
                 {/* 狀態指示器 */}
                 {isRecording && (
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg animate-pulse">
-                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Live</span>
-                  </div>
+                  isFallbackMode ? (
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg animate-pulse">
+                      <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Local</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg animate-pulse">
+                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Live</span>
+                    </div>
+                  )
                 )}
                 <button
                   onClick={toggleRecording}
@@ -2950,9 +3042,9 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             <div className="flex items-center gap-3">
               <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">{getUiText('textTranscript')}</h2>
               {isRecording && (
-                <div className="flex items-center gap-2 text-xs text-red-500 font-medium animate-pulse">
-                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                  正在聆聽...
+                <div className={cn("flex items-center gap-2 text-xs font-medium animate-pulse", isFallbackMode ? "text-amber-500" : "text-red-500")}>
+                  <div className={cn("w-2 h-2 rounded-full", isFallbackMode ? "bg-amber-500" : "bg-red-500")}></div>
+                  {isFallbackMode ? '本地模式聆聽中...' : '正在聆聽...'}
                 </div>
               )}
             </div>
@@ -3038,7 +3130,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      if (inputText.trim() && isRecording) {
+                      if (inputText.trim()) {
                         handleSendText();
                       }
                     }
@@ -3047,9 +3139,9 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
 
                 <button
                   onClick={handleSendText}
-                  disabled={!inputText.trim() || !isRecording}
+                  disabled={!inputText.trim()}
                   className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-400 dark:disabled:bg-slate-700 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all shrink-0"
-                  title={!isRecording ? "請先開啟錄音功能" : ""}
+                  title={!isRecording ? "錄音目前關閉，將使用文字模式" : ""}
                 >
                   {isTranslatingText ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
