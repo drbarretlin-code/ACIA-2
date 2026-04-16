@@ -1813,9 +1813,9 @@ export default function App() {
       mediaStreamRef.current = stream;
       
       try {
-        await audioCtx.audioWorklet.addModule('/audio-processor.js');
+        await audioCtx.audioWorklet.addModule('/audio-processor.js?v=2.0');
       } catch (e) {
-        console.log("AudioWorklet already added or error:", e);
+        console.warn("[Audio] AudioWorklet addModule error (might be already added):", e);
       }
 
       const source = audioCtx.createMediaStreamSource(stream);
