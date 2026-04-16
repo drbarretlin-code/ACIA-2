@@ -1141,8 +1141,8 @@ export default function App() {
     if (!inputText.trim() || !user) return;
 
     // 確保使用當次對話最新的同步語系 ID
-    const sourceId = localLang || 'zh-TW';
-    const targetId = clientLang || 'en-US';
+    const sourceId = translationDirection === 'clientToLocal' ? (clientLang || 'en-US') : (localLang || 'zh-TW');
+    const targetId = translationDirection === 'clientToLocal' ? (localLang || 'zh-TW') : (clientLang || 'en-US');
     
     console.log(`[Translation Sync] Sending text from ${sourceId} to ${targetId}`);
 
