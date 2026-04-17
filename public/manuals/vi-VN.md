@@ -1,4 +1,4 @@
-# Hướng Dẫn Sử Dụng Hệ Thống Dịch Thuật AI Thời Gian Thực ACIA-2
+# tuc translator Hướng dẫn sử dụng
 
 ---
 
@@ -13,6 +13,9 @@ Sau khi mở trang web lần đầu tiên, hoàn thành các bước sau:
 3. **Tạo hoặc Tham gia Phòng**:
    - Nhấp "Tạo Phòng Mới" để bắt đầu phiên dịch.
    - Hoặc dán liên kết mời được chia sẻ bởi người khác để tham gia trực tiếp.
+
+> [!IMPORTANT]
+> **Cơ chế chấp nhập nghiêm ngặt**: Khi vào phòng họp, hệ thống sẽ phát hiện xem bạn có Khóa API hợp lệ hay không (khóa cá nhân hoặc khóa được chia sẻ). Nếu cả hai đều không khả dụng, hướng dẫn thiết lập sẽ tự động hiện lên. Nếu bạn chọn hủy, bạn sẽ không thể vào phòng hoặc xem bất kỳ bản dịch nào.
 
 > [!NOTE]
 > API Key được lưu trữ cục bộ trong trình duyệt và sẽ không được tải lên bất kỳ máy chủ nào.
@@ -101,6 +104,17 @@ Chỉ người tạo phòng mới truy cập được:
 - **Cài đặt API Key**: Thay đổi Gemini API Key hoặc Google Cloud API Key.
 - **Chuyển đổi Tier API**: Free Tier hoặc Tier 1 (trả theo sử dụng).
 - **Cài đặt Tiêu đề**: Tùy chỉnh tên thương hiệu (mặc định: `TUC`) và phụ đề (mặc định: `Equipment Department`).
+
+---
+
+### 8. Tại sao tôi cần API Key cá nhân? (BYOK)
+
+Hệ thống này tuân theo mô hình **BYOK (Bring Your Own Key)**, mang lại một số lợi thế chính:
+
+1. **Hạn ngạch Độc lập**: Mỗi khóa miễn phí có giới hạn 2 kết nối mỗi phút (RPM). Nếu nhiều người dùng chung một khóa, giới hạn này rất dễ bị chạm tới, khiến mọi người bị ngắt kết nối. Sử dụng khóa riêng của bạn đảm bảo kết nối của bạn luôn ổn định và không bị ảnh hưởng bởi người khác.
+2. **Đăng ký Dễ dàng và Miễn phí**: Bạn có thể lấy khóa miễn phí trong chưa đầy một phút qua [Google AI Studio](https://aistudio.google.com/app/apikey). Không cần thẻ tín dụng hay cấu hình phức tạp.
+3. **Độ ổn định Kết nối**: Có hạn ngạch riêng giúp đảm bảo bạn duy trì nhận dạng giọng nói và dịch thuật ổn định trong giờ cao điểm hoặc các cuộc họp dài.
+4. **Bảo mật Dữ liệu**: Khóa API và lịch sử trò chuyện của bạn chỉ được lưu trữ trong trình duyệt cục bộ. Khóa giao tiếp trực tiếp với máy chủ của Google mà không được chuyển tiếp qua bất kỳ máy chủ trung gian nào của bên thứ ba.
 
 ---
 

@@ -1,4 +1,4 @@
-# Panduan Pengguna Sistem Terjemahan Real-Time AI ACIA-2
+# tuc translator Panduan Pengguna
 
 ---
 
@@ -13,6 +13,9 @@ Setelah membuka halaman web untuk pertama kali, selesaikan langkah-langkah berik
 3. **Buat atau Gabung Ruangan**:
    - Klik "Buat Ruangan Baru" untuk memulai sesi terjemahan.
    - Atau tempelkan link undangan yang dibagikan oleh orang lain ke kolom URL untuk bergabung langsung.
+
+> [!IMPORTANT]
+> **Mekanisme Penerimaan Ketat**: Saat memasuki ruang rapat, sistem akan mendeteksi apakah Anda memiliki API Key yang valid (pribadi atau dibagikan oleh host). Jika keduanya tidak tersedia, panduan pengaturan akan muncul secara otomatis. Jika Anda memilih untuk membatalkan, Anda tidak akan dapat memasuki ruangan atau melihat terjemahan apa pun.
 
 > [!NOTE]
 > API Key disimpan secara lokal di browser Anda dan tidak akan diunggah ke server mana pun.
@@ -101,6 +104,17 @@ Hanya dapat diakses oleh pembuat ruangan, mencakup:
 - **Pengaturan API Key**: Ubah Gemini API Key atau Google Cloud API Key.
 - **Switch Tier API**: Free Tier atau Tier 1 (bayar sesuai penggunaan).
 - **Pengaturan Judul Header**: Kustomisasi nama merek kiri (default: `TUC`) dan subtitle (default: `Equipment Department`).
+
+---
+
+### 8. Mengapa saya memerlukan API Key pribadi? (BYOK)
+
+Sistem ini mengikuti model **BYOK (Bring Your Own Key)**, yang memberikan beberapa keuntungan utama:
+
+1. **Kuota Independen**: Setiap kunci gratis memiliki batas 2 koneksi per menit (RPM). Jika banyak orang berbagi satu kunci, batas ini mudah tercapai, menyebabkan semua orang terputus. Menggunakan kunci Anda sendiri memastikan koneksi Anda tetap stabil dan tidak terpengaruh oleh orang lain.
+2. **Aplikasi Mudah dan Gratis**: Anda bisa mendapatkan kunci gratis dalam waktu kurang dari satu menit melalui [Google AI Studio](https://aistudio.google.com/app/apikey). Tidak diperlukan kartu kredit atau konfigurasi yang rumit.
+3. **Stabilitas Koneksi**: Memiliki kuota khusus memastikan Anda dapat mempertahankan pengenalan suara dan terjemahan yang stabil selama waktu sibuk atau pertemuan panjang.
+4. **Privasi Data**: API Key dan riwayat percakapan Anda hanya disimpan di browser lokal Anda. Kunci berkomunikasi langsung dengan server Google tanpa diteruskan melalui server pihak ketiga mana pun.
 
 ---
 

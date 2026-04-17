@@ -1,4 +1,4 @@
-# ACIA-2 AI Real-Time Translation System - User Manual
+# tuc translator User Manual
 
 ---
 
@@ -13,6 +13,9 @@ After opening the web page for the first time, complete the following steps:
 3. **Create or Join a Room**:
    - Click "Create New Room" to start a translation session.
    - Or paste an invitation link shared by others into the URL bar to join directly.
+
+> [!IMPORTANT]
+> **Strict Admission Mechanism**: When entering a meeting room, the system will detect if you have a valid API Key (personal or shared). If neither is available, the setup guide will pop up automatically. If you choose to cancel, you will be unable to enter the room or view any translations.
 
 > [!NOTE]
 > The API Key is stored locally in your browser and will not be uploaded to any server.
@@ -101,6 +104,17 @@ Accessible only to the room creator, includes:
 - **API Key Settings**: Change Gemini API Key or Google Cloud API Key.
 - **API Tier Switch**: Free Tier or Tier 1 (pay-as-you-go) quota mapping.
 - **Header Title Settings**: Customize left brand name (default: `TUC`) and subtitle (default: `Equipment Department`).
+
+---
+
+### 8. Why do I need a personal API Key? (BYOK)
+
+This system follows the **BYOK (Bring Your Own Key)** model, providing several key advantages:
+
+1. **Independent Quotas**: Each free key has a limit of 2 connections per minute (RPM). If multiple people share a single key, it's easy to hit this limit, causing everyone to disconnect. Using your own key ensures your connection remains stable and unaffected by others.
+2. **Easy and Free Application**: You can get a free key in less than a minute via [Google AI Studio](https://aistudio.google.com/app/apikey). No credit card or complex configuration is required.
+3. **Connection Stability**: Having your own dedicated quota ensures you can maintain stable speech recognition and translation during peak times or long meetings.
+4. **Data Privacy**: Your API Key and conversation history are stored only in your local browser. The key communicates directly with Google's servers without being forwarded through any third-party centralized servers.
 
 ---
 

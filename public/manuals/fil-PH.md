@@ -1,4 +1,4 @@
-# ACIA-2 AI Real-Time Translation System - Gabay sa Paggamit
+# tuc translator Gabay sa Paggamit
 
 ---
 
@@ -13,6 +13,9 @@ Pagkatapos buksan ang web page sa unang pagkakataon, kumpletuhin ang mga sumusun
 3. **Gumawa o Sumali sa Room**:
    - I-click ang "Gumawa ng Bagong Room" para simulan ang translation session.
    - O i-paste ang invitation link na ibinigay ng iba para direktang sumali.
+
+> [!IMPORTANT]
+> **Mahigpit na Mekanismo ng Pagpasok**: Kapag pumasok sa isang meeting room, idi-detect ng system kung mayroon kang valid na API Key (personal o shared). Kung wala pareho, awtomatikong lalabas ang setup guide. Kung pipiliin mong mag-cancel, hindi ka makakapasok sa room o makakakita ng anumang translations.
 
 > [!NOTE]
 > Ang API Key ay naka-store lang sa iyong browser at hindi ia-upload sa anumang server.
@@ -101,6 +104,17 @@ Accessible lang sa room creator:
 - **API Key Settings**: Baguhin ang Gemini API Key o Google Cloud API Key.
 - **API Tier Switch**: Free Tier o Tier 1 (bayad ayon sa paggamit).
 - **Header Title Settings**: I-customize ang brand name (default: `TUC`) at subtitle (default: `Equipment Department`).
+
+---
+
+### 8. Bakit kailangan ko ng sariling API Key? (BYOK)
+
+Ang sistemang ito ay sumusunod sa **BYOK (Bring Your Own Key)** model, na nagbibigay ng ilang mahahalagang bentahe:
+
+1. **Independent Quotas**: Ang bawat libreng key ay may limitasyon na 2 connections bawat minuto (RPM). Kung maraming tao ang gumagamit ng iisang key, madaling maabot ang limitasyong ito, na nagiging sanhi ng pagkaputol ng koneksyon ng lahat. Ang paggamit ng sarili mong key ay tinitiyak na ang iyong koneksyon ay mananatiling stable at hindi maaapektuhan ng iba.
+2. **Madali at Libreng Application**: Maaari kang makakuha ng libreng key sa loob ng wala pang isang minuto sa pamamagitan ng [Google AI Studio](https://aistudio.google.com/app/apikey). Walang credit card o kumplikadong configuration na kailangan.
+3. **Connection Stability**: Ang pagkakaroon ng iyong sariling nakalaang quota ay nagsisiguro na mapapanatili mo ang stable na speech recognition at translation sa panahon ng peak hours o mahahabang meetings.
+4. **Data Privacy**: Ang iyong API Key at kasaysayan ng pag-uusap ay naka-store lamang sa iyong lokal na browser. Ang key ay direktang nakikipag-ugnayan sa mga server ng Google nang hindi dumadaan sa anumang third-party na centralized servers.
 
 ---
 
