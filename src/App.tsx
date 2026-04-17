@@ -3454,30 +3454,48 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 remarkPlugins={[remarkGfm]}
                 components={{
                   blockquote: ({ children, ...props }) => {
-                    const text = String(children);
+                    // Helper to get raw text for alert tag detection
+                    const getRawText = (node: any): string => {
+                      if (typeof node === 'string') return node;
+                      if (Array.isArray(node)) return node.map(getRawText).join('');
+                      if (React.isValidElement(node)) return getRawText((node.props as any).children);
+                      return '';
+                    };
+
+                    const firstPara = React.Children.toArray(children)[0];
+                    const fullText = getRawText(firstPara);
+                    
                     let borderColor = 'border-slate-300 dark:border-slate-600';
                     let bgColor = 'bg-transparent';
                     let icon = '';
-                    if (text.includes('[!NOTE]')) {
+                    
+                    if (fullText.includes('[!NOTE]')) {
                       borderColor = 'border-blue-400'; bgColor = 'bg-blue-50 dark:bg-blue-950/30'; icon = '\u2139\uFE0F';
-                    } else if (text.includes('[!IMPORTANT]')) {
+                    } else if (fullText.includes('[!IMPORTANT]')) {
                       borderColor = 'border-purple-400'; bgColor = 'bg-purple-50 dark:bg-purple-950/30'; icon = '\u2757';
-                    } else if (text.includes('[!WARNING]')) {
+                    } else if (fullText.includes('[!WARNING]')) {
                       borderColor = 'border-amber-400'; bgColor = 'bg-amber-50 dark:bg-amber-950/30'; icon = '\u26A0\uFE0F';
-                    } else if (text.includes('[!CAUTION]')) {
+                    } else if (fullText.includes('[!CAUTION]')) {
                       borderColor = 'border-red-400'; bgColor = 'bg-red-50 dark:bg-red-950/30'; icon = '\uD83D\uDED1';
-                    } else if (text.includes('[!TIP]')) {
+                    } else if (fullText.includes('[!TIP]')) {
                       borderColor = 'border-green-400'; bgColor = 'bg-green-50 dark:bg-green-950/30'; icon = '\uD83D\uDCA1';
                     }
+
                     return (
                       <blockquote className={`border-l-4 ${borderColor} ${bgColor} pl-4 pr-3 py-2 my-4 rounded-r-lg not-prose`} {...props}>
                         <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
                           {icon && <span className="mr-1">{icon}</span>}
                           {React.Children.map(children, child => {
                             if (React.isValidElement(child) && child.type === 'p') {
-                              const pText = String((child as any).props?.children || '');
-                              const cleaned = pText.replace(/\[!(NOTE|IMPORTANT|WARNING|CAUTION|TIP)\]\s*/g, '');
-                              return <p className="my-1">{cleaned}</p>;
+                              // Safely remove the tag from the first string child of the paragraph
+                              const pChildren = (child.props as any).children;
+                              const newPChildren = React.Children.map(pChildren, (pChild, idx) => {
+                                if (idx === 0 && typeof pChild === 'string') {
+                                  return pChild.replace(/\[!(NOTE|IMPORTANT|WARNING|CAUTION|TIP)\]\s*/g, '');
+                                }
+                                return pChild;
+                              });
+                              return <p className="my-1">{newPChildren}</p>;
                             }
                             return child;
                           })}
