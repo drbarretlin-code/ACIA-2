@@ -253,6 +253,9 @@ export default function App() {
   const [isSharingKey, setIsSharingKey] = useState(() => (localStorage.getItem('is_sharing_key') === 'true')); // Defaults to false if null/empty
   const [showApiKeyGuide, setShowApiKeyGuide] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem('onboarding_completed') !== 'true');
+
+  // Strict BYOK Admission Logic: User is locked if in a room with no personal or shared key.
+  const isLocked = !!roomId && !userApiKey && !roomApiKey;
   const virtuosoRef = useRef<any>(null);
   const prevTranscriptsLengthRef = useRef(0);
 
@@ -318,6 +321,7 @@ export default function App() {
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   
   // --- SEO & Document Metadata ---
+  // --- SEO & Document Metadata ---
   useEffect(() => {
     const baseTitle = "TUC | AI Real-time Intelligent Interpreter";
     if (projectName) {
@@ -331,6 +335,13 @@ export default function App() {
       document.documentElement.lang = uiLang.split('-')[0];
     }
   }, [roomId, projectName, uiLang]);
+
+  // Strict BYOK Admission: Immediate lock and prompt
+  useEffect(() => {
+    if (isLocked) {
+      setShowApiKeyGuide(true);
+    }
+  }, [isLocked]);
 
   // Dynamic manual content fetch
   useEffect(() => {
@@ -3193,7 +3204,26 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
             </div>
           </div>
           
-          <div className="flex-1 overflow-hidden p-4 sm:p-5">
+          <div className="flex-1 overflow-hidden p-4 sm:p-5 relative">
+            {isLocked && (
+              <div className="absolute inset-0 z-50 backdrop-blur-md bg-white/30 dark:bg-slate-900/40 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 max-w-xs transform scale-100 transition-transform hover:scale-[1.02]">
+                  <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                    <Lock className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Room Locked</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                    A valid API Key is required to view transcriptions and participate in this room.
+                  </p>
+                  <button
+                    onClick={() => setShowApiKeyGuide(true)}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
+                  >
+                    <Key className="w-4 h-4" /> Setup Key
+                  </button>
+                </div>
+              </div>
+            )}
             {transcripts.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 space-y-4 min-h-[200px]">
                 <div className="w-16 h-16 rounded-full bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center border border-slate-100 dark:border-slate-800">
@@ -3500,16 +3530,26 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
               />
               <div className="flex gap-3 mt-4">
                 <button
-                  onClick={() => setShowApiKeyGuide(false)}
+                  onClick={() => {
+                    if (isLocked) {
+                      // Redirect back to landing page
+                      setRoomId(null);
+                      setTranscripts([]);
+                      setShowRoomDialog(true);
+                      setShowApiKeyGuide(false);
+                      window.history.replaceState({}, '', window.location.pathname);
+                    } else {
+                      setShowApiKeyGuide(false);
+                    }
+                  }}
                   className="flex-1 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
                 >
-                  {getUiText('cancel')}
+                  {isLocked ? "Leave Room" : getUiText('cancel')}
                 </button>
                 <button
                   onClick={() => {
                     if (userApiKey.trim()) {
                       setShowApiKeyGuide(false);
-                      toast.success("API Key Saved");
                     }
                   }}
                   className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-blue-500/20"
