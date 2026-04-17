@@ -252,6 +252,7 @@ export default function App() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isSharingKey, setIsSharingKey] = useState(() => localStorage.getItem('is_sharing_key') === 'true');
   const [showApiKeyGuide, setShowApiKeyGuide] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem('onboarding_completed') !== 'true');
   const virtuosoRef = useRef<any>(null);
   const prevTranscriptsLengthRef = useRef(0);
 
