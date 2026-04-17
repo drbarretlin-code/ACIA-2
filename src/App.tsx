@@ -308,10 +308,29 @@ export default function App() {
   const lastMessageTimeRef = useRef<number>(Date.now());
   const isInitializingRef = useRef(false);
 
+  // --- Ref Synchronization & Refs ---
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
   useEffect(() => { localLangRef.current = localLang; }, [localLang]);
   useEffect(() => { clientLangRef.current = clientLang; }, [clientLang]);
   useEffect(() => { isAudioOutputEnabledRef.current = isAudioOutputEnabled; }, [isAudioOutputEnabled]);
+  useEffect(() => { transcriptsRef.current = transcripts; }, [transcripts]);
+  
+  const transcriptEndRef = useRef<HTMLDivElement>(null);
+  
+  // --- SEO & Document Metadata ---
+  useEffect(() => {
+    const baseTitle = "TUC | AI Real-time Intelligent Interpreter";
+    if (projectName) {
+      document.title = `${projectName} - ${baseTitle}`;
+    } else if (roomId) {
+      document.title = `Room ${roomId} - ${baseTitle}`;
+    } else {
+      document.title = baseTitle;
+    }
+    if (uiLang) {
+      document.documentElement.lang = uiLang.split('-')[0];
+    }
+  }, [roomId, projectName, uiLang]);
 
   // Dynamic manual content fetch
   useEffect(() => {
@@ -358,20 +377,24 @@ export default function App() {
 
 
 
+  // Consolidated Page Unload Handler
   useEffect(() => {
-    const handleBeforeUnload = async () => {
+    const consolidatedUnloadHandler = async () => {
+      // 1. Connection Cleanup (Best effort)
       if (auth.currentUser) {
         try {
           await deleteDoc(doc(db, 'connections', auth.currentUser.uid));
         } catch (e) {
-          console.error("Error deleting connection:", e);
+          console.error("[Cleanup] Error deleting connection:", e);
         }
       }
+      // 2. Logging
+      console.log("[Diagnostic] Page unloading, connection cleanup initiated.");
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('beforeunload', consolidatedUnloadHandler);
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('beforeunload', consolidatedUnloadHandler);
     };
   }, [auth.currentUser]);
 
@@ -395,7 +418,6 @@ export default function App() {
 
   // Initialize Auth-based Room Join logic ONLY after handleJoinRoom is defined later
   
-  const transcriptEndRef = useRef<HTMLDivElement>(null);
   
   // Live API Refs
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -445,11 +467,7 @@ export default function App() {
 
 
 
-  useEffect(() => {
-    transcriptsRef.current = transcripts;
-  }, [transcripts]);
-
-  // 讀取與更新費用統計
+  // --- API Usage & Statistics ---
   const updateApiUsage = (type: 'request' | 'tokens', count: number = 1) => {
     if (!userApiKey) return;
     const now = new Date();
@@ -582,25 +600,13 @@ export default function App() {
     return () => clearTimeout(timeout);
   }, [showTimePrompt]);
 
+  // Simplified state persistence
   useEffect(() => {
     localStorage.setItem('user_name', userName);
   }, [userName]);
 
-  // Handle page unload for room creator
+  // 同步已整併至頂層
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // 移除自動關閉房間邏輯，避免頁面重新整理時誤觸
-      console.log("Page unloading, not closing room automatically.");
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [roomId, user, roomCreatorId]);
-
-  // 同步 state 到 ref，供事件回呼使用
-  useEffect(() => {
-    transcriptsRef.current = transcripts;
-
     // Sync newly finalized transcripts to Firestore
     if (roomId && user) {
       const lastTranscript = transcripts[transcripts.length - 1];
