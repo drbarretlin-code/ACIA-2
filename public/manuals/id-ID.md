@@ -107,17 +107,6 @@ Hanya dapat diakses oleh pembuat ruangan, mencakup:
 
 ---
 
-### 8. Mengapa saya memerlukan API Key pribadi? (BYOK)
-
-Sistem ini mengikuti model **BYOK (Bring Your Own Key)**, yang memberikan beberapa keuntungan utama:
-
-1. **Kuota Independen**: Setiap kunci gratis memiliki batas 2 koneksi per menit (RPM). Jika banyak orang berbagi satu kunci, batas ini mudah tercapai, menyebabkan semua orang terputus. Menggunakan kunci Anda sendiri memastikan koneksi Anda tetap stabil dan tidak terpengaruh oleh orang lain.
-2. **Aplikasi Mudah dan Gratis**: Anda bisa mendapatkan kunci gratis dalam waktu kurang dari satu menit melalui [Google AI Studio](https://aistudio.google.com/app/apikey). Tidak diperlukan kartu kredit atau konfigurasi yang rumit.
-3. **Stabilitas Koneksi**: Memiliki kuota khusus memastikan Anda dapat mempertahankan pengenalan suara dan terjemahan yang stabil selama waktu sibuk atau pertemuan panjang.
-4. **Privasi Data**: API Key dan riwayat percakapan Anda hanya disimpan di browser lokal Anda. Kunci berkomunikasi langsung dengan server Google tanpa diteruskan melalui server pihak ketiga mana pun.
-
----
-
 ## 2. Batasan Penggunaan
 
 ### 1. Batas Kuota API
@@ -211,4 +200,15 @@ Jika setiap pertemuan mengonsumsi 2-3 koneksi, Anda dapat mengadakan sekitar **1
 
 ---
 
-*Panduan ini ditulis berdasarkan versi sistem 2026-04-15. Silakan merujuk ke layar aktual jika antarmuka telah diperbarui.*
+## 4. Mengapa saya memerlukan API Key pribadi? (BYOK)
+
+Sistem ini mengikuti model **BYOK (Bring Your Own Key)**, yang memberikan beberapa keuntungan utama:
+
+1. **Kuota Independen**: Setiap kunci gratis memiliki batas 2 koneksi per menit (RPM). Jika banyak orang berbagi satu kunci, batas ini mudah tercapai, menyebabkan semua orang terputus. Menggunakan kunci Anda sendiri memastikan koneksi Anda tetap stabil dan tidak terpengaruh oleh orang lain.
+2. **Pendaftaran Mudah dan Gratis**: Anda bisa mendapatkan kunci gratis dalam waktu kurang dari satu menit melalui [Google AI Studio](https://aistudio.google.com/app/apikey). Tidak diperlukan kartu kredit atau konfigurasi yang rumit.
+3. **Stabilitas Koneksi**: Memiliki kuota khusus memastikan Anda dapat menjaga pengenalan suara dan terjemahan yang stabil selama jam sibuk atau pertemuan panjang.
+4. **Privasi Data**: API Key dan riwayat obrolan Anda hanya disimpan di browser lokal Anda. Kunci berkomunikasi langsung dengan server Google tanpa diteruskan melalui server pusat pihak ketiga mana pun.
+
+---
+
+*Panduan ini disusun berdasarkan sistem versi 2026-04-15. Harap merujuk ke layar sebenarnya jika antarmuka telah diperbarui.*

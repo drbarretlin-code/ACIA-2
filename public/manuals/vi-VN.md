@@ -107,17 +107,6 @@ Chỉ người tạo phòng mới truy cập được:
 
 ---
 
-### 8. Tại sao tôi cần API Key cá nhân? (BYOK)
-
-Hệ thống này tuân theo mô hình **BYOK (Bring Your Own Key)**, mang lại một số lợi thế chính:
-
-1. **Hạn ngạch Độc lập**: Mỗi khóa miễn phí có giới hạn 2 kết nối mỗi phút (RPM). Nếu nhiều người dùng chung một khóa, giới hạn này rất dễ bị chạm tới, khiến mọi người bị ngắt kết nối. Sử dụng khóa riêng của bạn đảm bảo kết nối của bạn luôn ổn định và không bị ảnh hưởng bởi người khác.
-2. **Đăng ký Dễ dàng và Miễn phí**: Bạn có thể lấy khóa miễn phí trong chưa đầy một phút qua [Google AI Studio](https://aistudio.google.com/app/apikey). Không cần thẻ tín dụng hay cấu hình phức tạp.
-3. **Độ ổn định Kết nối**: Có hạn ngạch riêng giúp đảm bảo bạn duy trì nhận dạng giọng nói và dịch thuật ổn định trong giờ cao điểm hoặc các cuộc họp dài.
-4. **Bảo mật Dữ liệu**: Khóa API và lịch sử trò chuyện của bạn chỉ được lưu trữ trong trình duyệt cục bộ. Khóa giao tiếp trực tiếp với máy chủ của Google mà không được chuyển tiếp qua bất kỳ máy chủ trung gian nào của bên thứ ba.
-
----
-
 ## 2. Giới Hạn Sử Dụng
 
 ### 1. Giới hạn Quota API
@@ -194,4 +183,15 @@ Hệ thống hỗ trợ 37 ngôn ngữ. Trong **chế độ dự phòng (Local S
 
 ---
 
-*Hướng dẫn này được viết dựa trên phiên bản hệ thống 2026-04-15.*
+## 4. Tại sao tôi cần API Key cá nhân? (BYOK)
+
+Hệ thống này tuân theo mô hình **BYOK (Bring Your Own Key)**, mang lại một số lợi thế chính:
+
+1. **Hạn ngạch Độc lập**: Mỗi khóa miễn phí có giới hạn 2 kết nối mỗi phút (RPM). Nếu nhiều người dùng chung một khóa, giới hạn này rất dễ bị chạm tới, khiến mọi người bị ngắt kết nối. Sử dụng khóa riêng của bạn đảm bảo kết nối của bạn luôn ổn định và không bị ảnh hưởng bởi người khác.
+2. **Đăng ký Dễ dàng và Miễn phí**: Bạn có thể lấy khóa miễn phí trong chưa đầy một phút qua [Google AI Studio](https://aistudio.google.com/app/apikey). Không cần thẻ tín dụng hay cấu hình phức tạp.
+3. **Độ ổn định Kết nối**: Có hạn ngạch riêng giúp đảm bảo bạn duy trì nhận dạng giọng nói và dịch thuật ổn định trong giờ cao điểm hoặc các cuộc họp dài.
+4. **Bảo mật Dữ liệu**: Khóa API và lịch sử trò chuyện của bạn chỉ được lưu trữ trong trình duyệt cục bộ. Khóa giao tiếp trực tiếp với máy chủ của Google mà không được chuyển tiếp qua bất kỳ máy chủ trung gian nào của bên thứ ba.
+
+---
+
+*Hướng dẫn này được viết dựa trên hệ thống phiên bản 2026-04-15. Vui lòng tham khảo màn hình thực tế nếu giao diện đã được cập nhật.*

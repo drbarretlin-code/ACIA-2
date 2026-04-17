@@ -107,17 +107,6 @@ Accessible lang sa room creator:
 
 ---
 
-### 8. Bakit kailangan ko ng sariling API Key? (BYOK)
-
-Ang sistemang ito ay sumusunod sa **BYOK (Bring Your Own Key)** model, na nagbibigay ng ilang mahahalagang bentahe:
-
-1. **Independent Quotas**: Ang bawat libreng key ay may limitasyon na 2 connections bawat minuto (RPM). Kung maraming tao ang gumagamit ng iisang key, madaling maabot ang limitasyong ito, na nagiging sanhi ng pagkaputol ng koneksyon ng lahat. Ang paggamit ng sarili mong key ay tinitiyak na ang iyong koneksyon ay mananatiling stable at hindi maaapektuhan ng iba.
-2. **Madali at Libreng Application**: Maaari kang makakuha ng libreng key sa loob ng wala pang isang minuto sa pamamagitan ng [Google AI Studio](https://aistudio.google.com/app/apikey). Walang credit card o kumplikadong configuration na kailangan.
-3. **Connection Stability**: Ang pagkakaroon ng iyong sariling nakalaang quota ay nagsisiguro na mapapanatili mo ang stable na speech recognition at translation sa panahon ng peak hours o mahahabang meetings.
-4. **Data Privacy**: Ang iyong API Key at kasaysayan ng pag-uusap ay naka-store lamang sa iyong lokal na browser. Ang key ay direktang nakikipag-ugnayan sa mga server ng Google nang hindi dumadaan sa anumang third-party na centralized servers.
-
----
-
 ## 2. Mga Limitasyon sa Paggamit
 
 ### 1. API Quota Limits
@@ -194,4 +183,15 @@ Ang "bilang ng koneksyon" ng Gemini Live ay kinakalkula bilang: **bawat pagsisim
 
 ---
 
-*Ang gabay na ito ay isinulat batay sa system version 2026-04-15.*
+## 4. Bakit kailangan ko ng sariling API Key? (BYOK)
+
+Ang sistemang ito ay sumusunod sa **BYOK (Bring Your Own Key)** model, na nagbibigay ng ilang mahahalagang bentahe:
+
+1. **Independent Quotas**: Ang bawat libreng key ay may limitasyon na 2 connections bawat minuto (RPM). Kung maraming tao ang gumagamit ng iisang key, madaling maabot ang limitasyong ito, na nagiging sanhi ng pagkaputol ng koneksyon ng lahat. Ang paggamit ng sarili mong key ay tinitiyak na ang iyong koneksyon ay mananatiling stable at hindi maaapektuhan ng iba.
+2. **Madali at Libreng Application**: Maaari kang makakuha ng libreng key sa loob ng wala pang isang minuto sa pamamagitan ng [Google AI Studio](https://aistudio.google.com/app/apikey). Walang credit card o kumplikadong configuration na kailangan.
+3. **Connection Stability**: Ang pagkakaroon ng iyong sariling nakalaang quota ay nagsisiguro na mapapanatili mo ang stable na speech recognition at translation sa panahon ng peak hours o mahahabang meetings.
+4. **Data Privacy**: Ang iyong API Key at kasaysayan ng pag-uusap ay naka-store lamang sa iyong lokal na browser. Ang key ay direktang nakikipag-ugnayan sa mga server ng Google nang hindi dumadaan sa anumang third-party na centralized servers.
+
+---
+
+*Ang gabay na ito ay isinulat batay sa system version 2026-04-15. Mangyaring sumangguni sa aktwal na screen kung ang interface ay na-update.*
