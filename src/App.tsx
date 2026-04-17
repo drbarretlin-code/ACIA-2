@@ -250,7 +250,8 @@ export default function App() {
   const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || 'en-US');
   const [isAtTop, setIsAtTop] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_completed'));
+  const [isSharingKey, setIsSharingKey] = useState(() => localStorage.getItem('is_sharing_key') === 'true');
+  const [showApiKeyGuide, setShowApiKeyGuide] = useState(false);
   const virtuosoRef = useRef<any>(null);
   const prevTranscriptsLengthRef = useRef(0);
 
@@ -753,6 +754,9 @@ export default function App() {
           if (data.apiKeyType) {
             setApiKeyType(data.apiKeyType);
           }
+          if (data.isSharingKey !== undefined) {
+             setIsSharingKey(data.isSharingKey);
+          }
           if (data.projectName) {
             setProjectName(data.projectName);
           }
@@ -1102,6 +1106,16 @@ export default function App() {
     localStorage.setItem('api_key_type', apiKeyType);
     localStorage.setItem('project_name', projectName);
     localStorage.setItem('gemini_api_tier', apiTier);
+    localStorage.setItem('is_sharing_key', isSharingKey.toString());
+    
+    // 同步金鑰分享狀態到 Firestore (僅限房主)
+    if (roomId && user && roomCreatorId === user.uid) {
+      const roomRef = doc(db, 'rooms', roomId);
+      updateDoc(roomRef, {
+        apiKey: isSharingKey ? userApiKey : null,
+        isSharingKey: isSharingKey
+      }).catch(err => console.error("Failed to sync shared key to Firestore:", err));
+    }
     
     // 使用 debounce 避免頻繁觸發驗證
     const handler = setTimeout(() => {
@@ -1109,7 +1123,7 @@ export default function App() {
     }, 1000);
     
     return () => clearTimeout(handler);
-  }, [userApiKey, apiTier]);
+  }, [userApiKey, apiTier, isSharingKey, roomId, user, roomCreatorId]);
 
   useEffect(() => {
     localStorage.setItem('header_title_1', headerTitle1);
@@ -1149,7 +1163,7 @@ export default function App() {
     const effectiveKey = userApiKey || roomApiKey;
 
     if (!effectiveKey) {
-      toast.error("找不到 API Key，請先在設定中輸入金鑰。");
+      setShowApiKeyGuide(true);
       return;
     }
 
@@ -1749,15 +1763,12 @@ export default function App() {
 
   const startLiveSession = async () => {
     if (isLiveRef.current || isInitializingRef.current) return;
-    const effectiveApiKey = (user && roomCreatorId && user.uid === roomCreatorId) ? userApiKey : (roomApiKey || userApiKey);
+    
+    // 優先順序：個人在地金鑰 > 房間共享金鑰
+    const effectiveApiKey = userApiKey || roomApiKey;
     
     if (!effectiveApiKey) {
-      if (user && roomCreatorId && user.uid === roomCreatorId) {
-        setErrorMsg('請先在管理者設定中配置您的 API 金鑰。');
-        setShowAdminSettings(true);
-      } else {
-        setErrorMsg('無法取得房間的 API 金鑰，請聯繫建立者。');
-      }
+      setShowApiKeyGuide(true);
       return;
     }
 
@@ -2810,6 +2821,28 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">
                     設定後，他人的譯文將以雲端 Neural 近真人音訊朗讀。
                   </p>
+
+                  {/* 分享金鑰開關 (僅限房主) */}
+                  {roomId && user && roomCreatorId === user.uid && (
+                    <div className="flex items-center justify-between p-3 bg-blue-50/50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/50 mt-2">
+                      <div className="space-y-0.5">
+                        <div className="text-xs font-bold text-blue-700 dark:text-blue-400">{getUiText('settings_share_key')}</div>
+                        <div className="text-[10px] text-blue-500/80">{getUiText('settings_share_key_desc')}</div>
+                      </div>
+                      <button
+                        onClick={() => setIsSharingKey(!isSharingKey)}
+                        className={cn(
+                          "w-10 h-5 rounded-full transition-colors relative",
+                          isSharingKey ? "bg-blue-600" : "bg-slate-300 dark:bg-slate-700"
+                        )}
+                      >
+                        <div className={cn(
+                          "absolute top-1 w-3 h-3 bg-white rounded-full transition-all",
+                          isSharingKey ? "left-6" : "left-1"
+                        )} />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <hr className="border-slate-100 dark:border-slate-800" />
@@ -3405,6 +3438,53 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
         </div>
       )}
 
+      {/* API Key Guide Modal */}
+      {showApiKeyGuide && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[250] p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-slate-200 dark:border-slate-800 p-6">
+            <div className="flex justify-center mb-4">
+              <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center">
+                <Key className="w-6 h-6 text-amber-600 dark:text-amber-500" />
+              </div>
+            </div>
+            <h3 className="text-lg font-bold text-center mb-2">{getUiText('setup_api_key_title')}</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
+              {getUiText('setup_api_key_desc')}
+            </p>
+            <div className="space-y-3">
+              <input
+                type="password"
+                placeholder="AIza..."
+                value={userApiKey}
+                onChange={(e) => {
+                  setUserApiKey(e.target.value);
+                  localStorage.setItem('gemini_api_key', e.target.value);
+                }}
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-xs"
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setShowApiKeyGuide(false)}
+                  className="flex-1 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                >
+                  {getUiText('cancel')}
+                </button>
+                <button
+                  onClick={() => {
+                    if (userApiKey.trim()) {
+                      setShowApiKeyGuide(false);
+                      toast.success("API Key Saved");
+                    }
+                  }}
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-blue-500/20"
+                >
+                  {getUiText('confirmAndEnter')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

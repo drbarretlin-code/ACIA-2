@@ -76,7 +76,14 @@ export const translations: Record<string, Record<string, string>> = {
     "lang_no_NO": "Norwegian",
     "lang_hu_HU": "Hungarian",
     "lang_ro_RO": "Romanian",
-    "lang_sk_SK": "Slovak"
+    "lang_sk_SK": "Slovak",
+    "apiKey_personal": "Using Personal API Key",
+    "apiKey_shared": "Using Shared API Key (Quota Limited)",
+    "apiKey_none": "No API Key Set",
+    "settings_share_key": "Share my API Key with others",
+    "settings_share_key_desc": "Careful: This will consume your quota.",
+    "setup_api_key_title": "Setup API Key",
+    "setup_api_key_desc": "Please enter your Gemini API Key to start translating."
   },
   "en-GB": {
     "title1": "TUC",
@@ -155,7 +162,14 @@ export const translations: Record<string, Record<string, string>> = {
     "lang_no_NO": "Norwegian",
     "lang_hu_HU": "Hungarian",
     "lang_ro_RO": "Romanian",
-    "lang_sk_SK": "Slovak"
+    "lang_sk_SK": "Slovak",
+    "apiKey_personal": "Gamit ang Personal na API Key",
+    "apiKey_shared": "Gamit ang Shared na API Key (Limitado ang Quota)",
+    "apiKey_none": "Walang API Key na Naka-set",
+    "settings_share_key": "Ibahagi ang aking API Key sa iba",
+    "settings_share_key_desc": "Ingat: Gagamit ito ng iyong quota.",
+    "setup_api_key_title": "I-setup ang API Key",
+    "setup_api_key_desc": "Pakilagay ang iyong Gemini API Key para magsimulang mag-translate."
   },
   "vi-VN": {
     "title1": "TUC",
@@ -234,7 +248,14 @@ export const translations: Record<string, Record<string, string>> = {
     "lang_no_NO": "Tiếng Na Uy",
     "lang_hu_HU": "Tiếng Hungary",
     "lang_ro_RO": "Tiếng Romania",
-    "lang_sk_SK": "Tiếng Slovakia"
+    "lang_sk_SK": "Tiếng Slovakia",
+    "apiKey_personal": "Đang sử dụng API Key cá nhân",
+    "apiKey_shared": "Đang sử dụng API Key dùng chung (Hạn mức có hạn)",
+    "apiKey_none": "Chưa thiết lập API Key",
+    "settings_share_key": "Chia sẻ API Key của tôi với người khác",
+    "settings_share_key_desc": "Cẩn thận: Việc này sẽ tiêu tốn hạn mức của bạn.",
+    "setup_api_key_title": "Thiết lập API Key",
+    "setup_api_key_desc": "Vui lòng nhập Gemini API Key để bắt đầu dịch."
   },
   "bn-BD": {
     "title1": "টিইউসি",
@@ -471,7 +492,14 @@ export const translations: Record<string, Record<string, string>> = {
     "lang_no_NO": "ノルウェー語",
     "lang_hu_HU": "ハンガリー語",
     "lang_ro_RO": "ルーマニア語",
-    "lang_sk_SK": "スロバキア語"
+    "lang_sk_SK": "スロバキア語",
+    "apiKey_personal": "個人用APIキーを使用中",
+    "apiKey_shared": "共有APIキーを使用中（クォータ制限あり）",
+    "apiKey_none": "APIキー未設定",
+    "settings_share_key": "自分のAPIキーを他者と共有する",
+    "settings_share_key_desc": "注意：これによりあなたのクォータが消費されます。",
+    "setup_api_key_title": "APIキーの設定",
+    "setup_api_key_desc": "翻訳を開始するにはGemini APIキーを入力してください。"
   },
   "ms-MY": {
     "title1": "TUC",
@@ -550,7 +578,14 @@ export const translations: Record<string, Record<string, string>> = {
     "lang_no_NO": "Norway",
     "lang_hu_HU": "Hungary",
     "lang_ro_RO": "Romania",
-    "lang_sk_SK": "Slovak"
+    "lang_sk_SK": "Slovak",
+    "apiKey_personal": "Menggunakan API Key Peribadi",
+    "apiKey_shared": "Menggunakan API Key Kongsi (Kuota Terhad)",
+    "apiKey_none": "API Key Belum Ditetapkan",
+    "settings_share_key": "Kongsi API Key saya dengan orang lain",
+    "settings_share_key_desc": "Berhati-hati: Ini akan menggunakan kuota anda.",
+    "setup_api_key_title": "Tetapkan API Key",
+    "setup_api_key_desc": "Sila masukkan Gemini API Key anda untuk mula menterjemah."
   },
   "sk-SK": {
     "title1": "TUC",
@@ -866,7 +901,14 @@ export const translations: Record<string, Record<string, string>> = {
     "lang_no_NO": "挪威语",
     "lang_hu_HU": "匈牙利语",
     "lang_ro_RO": "罗马尼亚语",
-    "lang_sk_SK": "斯洛伐克语"
+    "lang_sk_SK": "斯洛伐克语",
+    "apiKey_personal": "使用个人密钥",
+    "apiKey_shared": "使用共享密钥 (有配额限制)",
+    "apiKey_none": "尚未设置密钥",
+    "settings_share_key": "分享我的 API Key 给其他参与者",
+    "settings_share_key_desc": "注意：这将消耗您的 API 配额。",
+    "setup_api_key_title": "设置 API 密钥",
+    "setup_api_key_desc": "请输入您的 Gemini API 密钥以开始翻译。"
   },
   "ko-KR": {
     "title1": "TUC",
@@ -1024,7 +1066,14 @@ export const translations: Record<string, Record<string, string>> = {
     "lang_no_NO": "挪威文",
     "lang_hu_HU": "匈牙利文",
     "lang_ro_RO": "羅馬尼亞文",
-    "lang_sk_SK": "斯洛伐克文"
+    "lang_sk_SK": "斯洛伐克文",
+    "apiKey_personal": "使用個人金鑰",
+    "apiKey_shared": "使用共享金鑰 (有配額限制)",
+    "apiKey_none": "尚未設定金鑰",
+    "settings_share_key": "分享我的 API Key 給其他參與者",
+    "settings_share_key_desc": "注意：這將會消耗您的 API 配額。",
+    "setup_api_key_title": "設定 API 金鑰",
+    "setup_api_key_desc": "請輸入您的 Gemini API 金鑰以開始翻譯。"
   },
   "de-DE": {
     "title1": "TUC",
@@ -1182,7 +1231,14 @@ export const translations: Record<string, Record<string, string>> = {
     "lang_no_NO": "Norwegia",
     "lang_hu_HU": "Hungaria",
     "lang_ro_RO": "Rumania",
-    "lang_sk_SK": "Slovakia"
+    "lang_sk_SK": "Slovakia",
+    "apiKey_personal": "Menggunakan API Key Pribadi",
+    "apiKey_shared": "Menggunakan API Key Bersama (Kuota Terbatas)",
+    "apiKey_none": "API Key Belum Diatur",
+    "settings_share_key": "Bagikan API Key saya dengan orang lain",
+    "settings_share_key_desc": "Hati-hati: Ini akan menghabiskan kuota Anda.",
+    "setup_api_key_title": "Atur API Key",
+    "setup_api_key_desc": "Silakan masukkan Gemini API Key Anda untuk mulai menerjemahkan."
   },
   "sv-SE": {
     "title1": "TUC",
@@ -2051,7 +2107,14 @@ export const translations: Record<string, Record<string, string>> = {
     "lang_no_NO": "นอร์เวย์",
     "lang_hu_HU": "ฮังการี",
     "lang_ro_RO": "โรมาเนีย",
-    "lang_sk_SK": "สโลวัก"
+    "lang_sk_SK": "สโลวัก",
+    "apiKey_personal": "ใช้ API Key ส่วนตัว",
+    "apiKey_shared": "ใช้ API Key ส่วนกลาง (มีโควต้าจำกัด)",
+    "apiKey_none": "ยังไม่ได้ตั้งค่า API Key",
+    "settings_share_key": "แชร์ API Key ของฉันกับผู้อื่น",
+    "settings_share_key_desc": "ข้อควรระวัง: การดำเนินการนี้จะใช้โควต้าของคุณ",
+    "setup_api_key_title": "ตั้งค่า API Key",
+    "setup_api_key_desc": "โปรดกรอก Gemini API Key เพื่อเริ่มการแปล"
   },
   "fr-FR": {
     "title1": "TUC",
