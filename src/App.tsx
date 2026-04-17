@@ -250,7 +250,7 @@ export default function App() {
   const [uiLang, setUiLang] = useState(() => localStorage.getItem('ui_lang') || 'en-US');
   const [isAtTop, setIsAtTop] = useState(true);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [isSharingKey, setIsSharingKey] = useState(() => localStorage.getItem('is_sharing_key') === 'true');
+  const [isSharingKey, setIsSharingKey] = useState(() => (localStorage.getItem('is_sharing_key') === 'true')); // Defaults to false if null/empty
   const [showApiKeyGuide, setShowApiKeyGuide] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => localStorage.getItem('onboarding_completed') !== 'true');
   const virtuosoRef = useRef<any>(null);
@@ -331,6 +331,28 @@ export default function App() {
       .finally(() => { if (!cancelled) setManualLoading(false); });
     return () => { cancelled = true; };
   }, [showManual, manualLang]);
+
+  // Sync isSharingKey to Firestore room document
+  useEffect(() => {
+    if (!roomId || !user || !roomCreatorId || user.uid !== roomCreatorId) return;
+
+    const syncSharingState = async () => {
+      try {
+        await updateDoc(doc(db, 'rooms', roomId), {
+          apiKey: isSharingKey ? (userApiKey || "") : ""
+        });
+      } catch (e) {
+        console.error("[BYOK] Failed to sync sharing state:", e);
+      }
+    };
+
+    syncSharingState();
+  }, [isSharingKey, roomId, user, roomCreatorId, userApiKey]);
+
+  // Persist isSharingKey to local storage
+  useEffect(() => {
+    localStorage.setItem('is_sharing_key', isSharingKey.toString());
+  }, [isSharingKey]);
   
   // Socket.io Ref
 
@@ -749,15 +771,22 @@ export default function App() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setRoomCreatorId(data.creatorId);
-          if (data.apiKey) {
-            setRoomApiKey(data.apiKey);
+          
+          // Use data.apiKey if present (even if empty string) to allow host to revoke access
+          if (data.apiKey !== undefined) {
+            setRoomApiKey(data.apiKey || null);
           }
+          
           if (data.apiKeyType) {
             setApiKeyType(data.apiKeyType);
           }
-          if (data.isSharingKey !== undefined) {
+          
+          // Only sync isSharingKey from remote if we are NOT the creator
+          // The creator's local state is the source of truth
+          if (data.isSharingKey !== undefined && user?.uid !== data.creatorId) {
              setIsSharingKey(data.isSharingKey);
           }
+          
           if (data.projectName) {
             setProjectName(data.projectName);
           }
@@ -927,7 +956,7 @@ export default function App() {
       const roomData = {
         creatorId: currentUser.uid,
         createdAt: serverTimestamp(),
-        apiKey: userApiKey || "",
+        apiKey: isSharingKey ? (userApiKey || "") : "",
         apiKeyType: apiKeyType || "free",
         projectName: projectName || "",
         localLang: localLang || "zh-TW",
