@@ -216,6 +216,7 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [showRoomDialog, setShowRoomDialog] = useState(!new URLSearchParams(window.location.search).get('room'));
   const [joinRoomIdInput, setJoinRoomIdInput] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
+  const [isRoomSharingKey, setIsRoomSharingKey] = useState(false);
   const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
   const [noiseSuppression, setNoiseSuppression] = useState(true);
   const [echoCancellation, setEchoCancellation] = useState(true);
@@ -1033,6 +1034,12 @@ export default function App() {
     try {
       const roomSnap = await getDoc(doc(db, 'rooms', joinRoomIdInput.trim()));
       if (roomSnap.exists()) {
+        const roomData = roomSnap.data();
+        // If the current user is not the room creator, swap the languages
+        if (roomData && roomData.creatorId !== currentUser.uid) {
+          if (roomData.localLang) setClientLang(roomData.localLang);
+          if (roomData.clientLang) setLocalLang(roomData.clientLang);
+        }
         setRoomId(joinRoomIdInput.trim());
         setShowRoomDialog(false);
         window.history.replaceState({}, '', `?room=${joinRoomIdInput.trim()}`);
@@ -1109,6 +1116,26 @@ export default function App() {
   useEffect(() => {
     roomIdRef.current = roomId;
   }, [roomId]);
+
+  // Pre-fetch isSharingKey if user is joining via URL
+  useEffect(() => {
+    if (joinRoomIdInput.trim()) {
+      const fetchRoomKeyStatus = async () => {
+        try {
+          const roomSnap = await getDoc(doc(db, 'rooms', joinRoomIdInput.trim()));
+          if (roomSnap.exists()) {
+            const data = roomSnap.data();
+            if (data.isSharingKey) {
+              setIsRoomSharingKey(true);
+            }
+          }
+        } catch (e) {
+          console.error("Failed to pre-fetch room key status:", e);
+        }
+      };
+      fetchRoomKeyStatus();
+    }
+  }, [joinRoomIdInput]);
 
   // Yjs Foundation
   const ydocRef = useRef<Y.Doc>(new Y.Doc());
@@ -2476,19 +2503,24 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                 onChange={(e) => setTempName(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
               />
-              <div className="space-y-4">
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 block">Gemini API Key</label>
-                        <input
-                          type="password"
-                          value={userApiKey}
-                          onChange={(e) => setUserApiKey(e.target.value)}
-                          placeholder="AIza..."
-                          className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20"
-                        />
-                      </div>
-                      {/* 依據需求已移除登入畫面的 Google Cloud API Key (高品質語音) 輸入欄位 */}
-                    </div>
+              {!isRoomSharingKey ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 mb-1.5 block">Gemini API Key</label>
+                    <input
+                      type="password"
+                      value={userApiKey}
+                      onChange={(e) => setUserApiKey(e.target.value)}
+                      placeholder="AIza..."
+                      className="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-xl text-center">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">房間管理員已分享金鑰，您無需輸入即可加入</p>
+                </div>
+              )}
               <button
                 disabled={!tempName.trim()}
                 onClick={() => {
