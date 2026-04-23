@@ -1,6 +1,6 @@
 {
   "name": "Real-time Translator",
-  "description": "即時多國語音轉譯應會議室，支援語音轉文字與即時雙語顯示。",
+  "description": "即時多國語音轉譯會議室，支援語音轉文字與即時雙語顯示。",
   "requestFramePermissions": [
     "microphone"
   ]
