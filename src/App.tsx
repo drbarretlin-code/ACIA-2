@@ -776,10 +776,10 @@ export default function App() {
         });
         setActiveConnections(count);
       }, (err) => {
-        console.warn("[Diagnostic] Connections Snapshot Error (ignoring):", err);
+        console.warn("Connections Snapshot Warning:", err);
       });
     } else {
-      console.error("[Diagnostic] Skipping connections snapshot for anonymous joiner to avoid permission errors.");
+      // Anonymous joiners skip this to avoid permission warnings
     }
 
     // 3. Listen to Room Transcripts if roomId exists
@@ -980,22 +980,19 @@ export default function App() {
         isSpeakingEnabled: false,
         isClosed: false,
         apiKeyType: apiKeyType || "free",
-        projectName: projectName || ""
-        // 暫時移除以下疑似觸發權限錯誤的欄位：
-        // apiKey: isSharingKey ? userApiKey : null,
-        // isSharingKey: isSharingKey,
+        projectName: projectName || "",
+        isSharingKey: isSharingKey,
+        apiKey: isSharingKey ? userApiKey : null
       };
 
-      console.error("[Diagnostic] Testing Group C fields, ID:", newRoomId);
       await setDoc(doc(db, 'rooms', newRoomId), roomData);
-      console.error("[Diagnostic] Group C fields success!");
       
       setRoomId(newRoomId);
       setShowRoomDialog(false);
       window.history.replaceState({}, '', `?room=${newRoomId}`);
     } catch (e: any) {
-      console.error("[Diagnostic] Group C fields failed:", e);
-      setCustomAlert({ message: "建立房間失敗（欄位測試 C）：" + e.message, type: 'alert' });
+      console.error("Failed to create room:", e);
+      setCustomAlert({ message: "建立房間失敗：" + e.message, type: 'alert' });
     }
   };
 
