@@ -406,8 +406,6 @@ export default function App() {
         }
       });
 
-      // @ts-ignore
-      const { jsPDF } = window.jspdf;
       const pdf = new jsPDF('p', 'mm', 'a4');
       
       const imgProps = pdf.getImageProperties(dataUrl);
