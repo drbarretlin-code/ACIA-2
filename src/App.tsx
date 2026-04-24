@@ -220,6 +220,7 @@ export default function App() {
   const [isCheckingRoomKey, setIsCheckingRoomKey] = useState(!!new URLSearchParams(window.location.search).get('room'));
   
   const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
+  const [lastClearedAt, setLastClearedAt] = useState<number>(0);
   const [noiseSuppression, setNoiseSuppression] = useState(true);
   const [echoCancellation, setEchoCancellation] = useState(true);
   const [autoGainControl, setAutoGainControl] = useState(true);
@@ -803,6 +804,15 @@ export default function App() {
           if (data.projectName) {
             setProjectName(data.projectName);
           }
+
+          // [核心修正] 全域清除指令同步
+          if (data.lastClearedAt) {
+            const clearedTime = data.lastClearedAt.toMillis();
+            if (clearedTime > lastClearedAt) {
+              setTranscripts([]);
+              setLastClearedAt(clearedTime);
+            }
+          }
           if (data.isSpeakingEnabled !== undefined && data.isSpeakingEnabled !== isRecordingRef.current) {
             // [HARDEN] Prevent remote state from unsetting local isRecording if the user is the creator
             // This avoids "state flickering" during Firestore document updates.
@@ -1070,7 +1080,13 @@ export default function App() {
             batch.delete(doc.ref);
           });
           await batch.commit();
-          // 修正：明確清空本地狀態
+          
+          // 更新房間的 lastClearedAt 時間戳記，觸發所有連線者同步清空
+          await updateDoc(doc(db, 'rooms', roomId), {
+            lastClearedAt: serverTimestamp()
+          });
+
+          // 明確清空本地狀態
           setTranscripts([]);
         } catch (e) {
           console.error("清除失敗", e);
