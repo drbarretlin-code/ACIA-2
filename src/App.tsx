@@ -380,20 +380,19 @@ export default function App() {
     setIsExportingPDF(true);
     const toastId = toast.loading('Generating PDF...');
 
-    try {
-      // 核心修復：使用 Iframe 進行樣式隔離
-      // html2canvas 會掃描當前 document 的所有樣式表。透過在一個乾淨的 iframe 中渲染，
-      // 可以完全切斷與主頁面 Tailwind 4 (oklch) 樣式的聯繫。
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.style.width = '800px';
-      iframe.style.height = '1000px';
-      iframe.style.visibility = 'hidden';
-      iframe.style.zIndex = '-9999';
-      document.body.appendChild(iframe);
+    // 核能級修復：暫時將所有樣式表從 DOM 中徹底移除
+    // 這是因為 html2canvas 會主動掃描 document.head 所有的樣式標籤，
+    // 即使設定 .disabled = true，某些版本的解析器仍會嘗試讀取內容。
+    const styleElements = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'));
+    const head = document.head;
 
+    try {
+      // 1. 暫時移除所有樣式表標籤
+      styleElements.forEach(el => {
+        try { head.removeChild(el); } catch (e) {}
+      });
+
+      // 2. 準備導出內容 (使用獨立模板，不受移除樣式影響)
       const contentHtml = element.innerHTML;
       const pdfTemplate = `
         <!DOCTYPE html>
@@ -439,16 +438,6 @@ export default function App() {
         </html>
       `;
 
-      const iframeDoc = iframe.contentWindow?.document;
-      if (!iframeDoc) throw new Error('Could not create iframe document');
-
-      iframeDoc.open();
-      iframeDoc.write(pdfTemplate);
-      iframeDoc.close();
-
-      // 等待 Iframe 內容與字體加載
-      await new Promise(resolve => setTimeout(resolve, 500));
-
       const opt = {
         margin: [10, 10],
         filename: `TUC_Manual_${manualLang}.pdf`,
@@ -463,20 +452,23 @@ export default function App() {
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
+      // 3. 執行導出
       // @ts-ignore
       if (window.html2pdf) {
         // @ts-ignore
-        await window.html2pdf().from(iframeDoc.body).set(opt).save();
+        await window.html2pdf().from(pdfTemplate).set(opt).save();
         toast.success('PDF Downloaded!', { id: toastId });
       } else {
         toast.error('PDF library not loaded', { id: toastId });
       }
-
-      document.body.removeChild(iframe);
     } catch (error) {
       console.error('PDF Export Error:', error);
       toast.error('Export failed. Please try again.', { id: toastId });
     } finally {
+      // 4. 恢復所有樣式表
+      styleElements.forEach(el => {
+        try { head.appendChild(el); } catch (e) {}
+      });
       setIsExportingPDF(false);
     }
   }, [manualLang, isExportingPDF, isDarkMode]);
