@@ -33,4 +33,4 @@ Untuk mengaktifkan kekuatan penuh terjemahan AI, Anda memerlukan Kunci API Gemin
 - **Mode Gelap**: Beralih antara mode terang dan gelap untuk tampilan yang nyaman.
 
 ---
-*Versi: V2.1 | Dukungan: Tim TUC*
+*Versi: V2.1 | Dukungan: Dr. Barret Lin*

@@ -33,4 +33,4 @@ To enable the full power of AI translation, you need a Gemini API Key.
 - **Dark Mode**: Toggle between light and dark modes for comfortable viewing.
 
 ---
-*Version: V2.1 | Support: TUC Team*
+*Version: V2.1 | Support: Dr. Barret Lin*

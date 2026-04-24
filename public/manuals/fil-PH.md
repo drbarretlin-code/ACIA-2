@@ -33,4 +33,4 @@ Upang paganahin ang buong kapangyariaran ng pagsasalin ng AI, kailangan mo ng Ge
 - **Dark Mode**: Mag-toggle sa pagitan ng light at dark mode para sa komportableng pagtingin.
 
 ---
-*Bersyon: V2.1 | Suporta: TUC Team*
+*Bersyon: V2.1 | Suporta: Dr. Barret Lin*
