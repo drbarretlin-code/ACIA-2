@@ -951,19 +951,27 @@ export default function App() {
     } catch (e) {}
 
     let currentUser = user;
-    if (!currentUser) {
+    
+    // 如果目前是匿名使用者，或是尚未登入，且嘗試建立房間
+    if (!currentUser || currentUser.isAnonymous) {
+      // 詢問使用者是否要改用 Google 登入（獲取建立權限）
+      console.error("[Diagnostic] Current user is null or anonymous. Asking for Google login...");
       try {
-        currentUser = await signInAnon();
-      } catch (e) {
-        console.warn("Anonymous sign in failed, trying Google", e);
-        try {
-          currentUser = await signInWithGoogle();
-        } catch (err: any) {
-          setCustomAlert({ message: "登入失敗，請確認瀏覽器是否阻擋彈出視窗：" + err.message, type: 'alert' });
-          return;
+        currentUser = await signInWithGoogle();
+      } catch (err: any) {
+        console.error("[Diagnostic] Google Sign-in failed or cancelled:", err);
+        // 如果使用者取消 Google 登入，嘗試使用匿名登入作為最後手段（雖然可能失敗）
+        if (!currentUser) {
+          try {
+            currentUser = await signInAnon();
+          } catch (e) {
+            setCustomAlert({ message: "登入失敗，請確認網路連線。", type: 'alert' });
+            return;
+          }
         }
       }
     }
+    
     if (!currentUser) return;
 
     if (activeConnections >= 100) {
@@ -2649,9 +2657,48 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                 </div>
               </div>
               <h2 className="text-2xl font-bold mb-2 text-center">{getUiText('roomTitle')}</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">
+              <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-4">
                 {getUiText('roomDesc')}
               </p>
+
+              {/* Login Status & Toggle */}
+              <div className="flex flex-col items-center gap-3 mb-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-sm">
+                  {user && !user.isAnonymous ? (
+                    <>
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-slate-600 dark:text-slate-300">已登入：{user.email}</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-2 h-2 rounded-full bg-slate-400" />
+                      <span className="text-slate-600 dark:text-slate-400">目前為訪客身分 (匿名)</span>
+                    </>
+                  )}
+                </div>
+                {!user || user.isAnonymous ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await signInWithGoogle();
+                      } catch (e) {
+                        console.error("Login failed", e);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
+                  >
+                    <LogIn className="w-4 h-4 text-blue-600" />
+                    使用 Google 帳號登入 (建議)
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => auth.signOut()}
+                    className="text-xs text-slate-400 hover:text-red-500 transition-colors underline underline-offset-4"
+                  >
+                    登出帳號
+                  </button>
+                )}
+              </div>
 
               <div className="space-y-6">
                 <div className="space-y-3">
