@@ -1892,7 +1892,12 @@ export default function App() {
           stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } catch (retryErr: any) {
           console.error("麥克風存取完全失敗:", retryErr);
-          throw new Error("無法存取麥克風：" + retryErr.message);
+          const isNotAllowed = retryErr.name === 'NotAllowedError' || (retryErr.message && retryErr.message.toLowerCase().includes('not allowed'));
+          let friendlyMsg = "無法存取麥克風：" + retryErr.message;
+          if (isNotAllowed) {
+            friendlyMsg = "無法存取麥克風。若是使用 LINE、FB 或掃碼器的內建瀏覽器，請點擊右上角或右下角選單「在 Safari 開啟」或「在預設瀏覽器開啟」。或者請確認您已在系統設定中允許網頁存取麥克風。";
+          }
+          throw new Error(friendlyMsg);
         }
       }
       mediaStreamRef.current = stream;
