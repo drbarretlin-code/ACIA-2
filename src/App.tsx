@@ -380,95 +380,63 @@ export default function App() {
     setIsExportingPDF(true);
     const toastId = toast.loading('Generating PDF...');
 
-    // 核能級修復：暫時將所有樣式表從 DOM 中徹底移除
-    // 這是因為 html2canvas 會主動掃描 document.head 所有的樣式標籤，
-    // 即使設定 .disabled = true，某些版本的解析器仍會嘗試讀取內容。
-    const styleElements = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'));
-    const head = document.head;
-
     try {
-      // 1. 暫時移除所有樣式表標籤
-      styleElements.forEach(el => {
-        try { head.removeChild(el); } catch (e) {}
+      // 使用 dom-to-image 將內容轉換為高品質圖片
+      // 這比 html2canvas 方案更穩定，因為它主要處理可視 DOM 的渲染，不會掃描全域樣式表。
+      // @ts-ignore
+      if (!window.domtoimage || !window.jspdf) {
+        throw new Error('PDF libraries not loaded');
+      }
+
+      // 暫時微調樣式以利擷取
+      const originalScrollHeight = element.style.height;
+      const originalMaxHeight = element.style.maxHeight;
+      const originalOverflow = element.style.overflow;
+      
+      // 確保擷取到完整內容
+      // @ts-ignore
+      const dataUrl = await window.domtoimage.toPng(element, {
+        bgcolor: isDarkMode ? '#0f172a' : '#ffffff',
+        quality: 0.95,
+        width: 800,
+        height: element.scrollHeight,
+        style: {
+          borderRadius: '0',
+          margin: '0',
+          padding: '40px',
+          overflow: 'visible'
+        }
       });
 
-      // 2. 準備導出內容 (使用獨立模板，不受移除樣式影響)
-      const contentHtml = element.innerHTML;
-      const pdfTemplate = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body {
-              padding: 40px; 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-              background-color: ${isDarkMode ? '#0f172a' : '#ffffff'}; 
-              color: ${isDarkMode ? '#cbd5e1' : '#334155'};
-              line-height: 1.6;
-              margin: 0;
-            }
-            h1 { color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important; font-size: 24pt; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
-            h2 { color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important; font-size: 18pt; margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}; padding-bottom: 5px; }
-            h3 { color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important; font-size: 14pt; margin-top: 20px; }
-            p { font-size: 11pt; margin: 12px 0; }
-            blockquote { 
-              background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'} !important; 
-              border-left: 5px solid #3b82f6 !important; 
-              padding: 15px 20px; 
-              margin: 20px 0; 
-              font-style: italic;
-            }
-            code { 
-              background-color: ${isDarkMode ? '#334155' : '#f1f5f9'} !important; 
-              color: ${isDarkMode ? '#f1f5f9' : '#b91c1c'} !important; 
-              padding: 2px 5px; 
-              border-radius: 4px; 
-              font-family: monospace;
-            }
-            ul, ol { padding-left: 25px; margin: 15px 0; }
-            li { margin-bottom: 8px; }
-            strong { color: ${isDarkMode ? '#ffffff' : '#000000'}; font-weight: bold; }
-            hr { border: none; border-top: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}; margin: 30px 0; }
-          </style>
-        </head>
-        <body>
-          ${contentHtml}
-        </body>
-        </html>
-      `;
-
-      const opt = {
-        margin: [10, 10],
-        filename: `TUC_Manual_${manualLang}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
-          logging: false,
-          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff'
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-      };
-
-      // 3. 執行導出
       // @ts-ignore
-      if (window.html2pdf) {
-        // @ts-ignore
-        await window.html2pdf().from(pdfTemplate).set(opt).save();
-        toast.success('PDF Downloaded!', { id: toastId });
-      } else {
-        toast.error('PDF library not loaded', { id: toastId });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      // 分頁邏輯
+      let heightLeft = pdfHeight;
+      let position = 0;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight;
+        pdf.addPage();
+        pdf.addImage(dataUrl, 'PNG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
       }
+
+      pdf.save(`TUC_Manual_${manualLang}.pdf`);
+      toast.success('PDF Downloaded!', { id: toastId });
     } catch (error) {
       console.error('PDF Export Error:', error);
       toast.error('Export failed. Please try again.', { id: toastId });
     } finally {
-      // 4. 恢復所有樣式表
-      styleElements.forEach(el => {
-        try { head.appendChild(el); } catch (e) {}
-      });
       setIsExportingPDF(false);
     }
   }, [manualLang, isExportingPDF, isDarkMode]);
