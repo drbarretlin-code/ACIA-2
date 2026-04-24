@@ -284,6 +284,7 @@ export default function App() {
   const [manualLang, setManualLang] = useState<ManualLangCode>('en-US');
   const [manualMarkdown, setManualMarkdown] = useState('');
   const [manualLoading, setManualLoading] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
   const [headerTitle1, setHeaderTitle1] = useState(() => localStorage.getItem('header_title_1') || 'TUC');
   const [headerTitle2, setHeaderTitle2] = useState(() => localStorage.getItem('header_title_2') || 'Equipment Department');
@@ -372,28 +373,63 @@ export default function App() {
     return () => { cancelled = true; };
   }, [showManual, manualLang]);
   
-  const handleExportPDF = useCallback(() => {
+  const handleExportPDF = useCallback(async () => {
     const element = document.getElementById('manual-content');
-    if (!element) return;
+    if (!element || isExportingPDF) return;
 
-    const opt = {
-      margin: [15, 15],
-      filename: `TUC_Manual_${manualLang}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    };
+    setIsExportingPDF(true);
+    const toastId = toast.loading('Preparing PDF...');
 
-    // @ts-ignore
-    if (window.html2pdf) {
+    try {
+      // 建立一個臨時克隆容器以避免 Modal/Scrollbar 造成的渲染崩潰
+      const clone = element.cloneNode(true) as HTMLElement;
+      
+      // 移除克隆元素的滾動限制與固定高度，確保內容完整展開
+      clone.style.width = '794px'; // 接近 A4 寬度 (210mm)
+      clone.style.height = 'auto';
+      clone.style.maxHeight = 'none';
+      clone.style.overflow = 'visible';
+      clone.style.position = 'absolute';
+      clone.style.top = '-9999px';
+      clone.style.left = '-9999px';
+      clone.style.backgroundColor = isDarkMode ? '#0f172a' : '#ffffff';
+      clone.classList.remove('overflow-y-auto');
+      
+      document.body.appendChild(clone);
+
+      const opt = {
+        margin: [15, 10],
+        filename: `TUC_Manual_${manualLang}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          logging: false,
+          scrollY: 0,
+          scrollX: 0,
+          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff'
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      };
+
       // @ts-ignore
-      window.html2pdf().set(opt).from(element).save();
-      toast.success('PDF Exporting...');
-    } else {
-      toast.error('PDF library not loaded');
+      if (window.html2pdf) {
+        // @ts-ignore
+        await window.html2pdf().set(opt).from(clone).save();
+        toast.success('PDF Downloaded!', { id: toastId });
+      } else {
+        toast.error('PDF library not loaded', { id: toastId });
+      }
+      
+      document.body.removeChild(clone);
+    } catch (error) {
+      console.error('PDF Export Error:', error);
+      toast.error('Export failed. Please try again.', { id: toastId });
+    } finally {
+      setIsExportingPDF(false);
     }
-  }, [manualLang]);
+  }, [manualLang, isExportingPDF, isDarkMode]);
 
 
 
@@ -3559,11 +3595,23 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                 </select>
                 <button
                   onClick={handleExportPDF}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                  disabled={isExportingPDF}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200",
+                    isExportingPDF 
+                      ? "bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed" 
+                      : "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                  )}
                   title={getUiText('exportPdf')}
                 >
-                  <FileDown className="w-4 h-4" />
-                  <span className="hidden sm:inline">{getUiText('exportPdf')}</span>
+                  {isExportingPDF ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileDown className="w-4 h-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {isExportingPDF ? 'Exporting...' : getUiText('exportPdf')}
+                  </span>
                 </button>
                 <button
                   onClick={() => setShowManual(false)}
