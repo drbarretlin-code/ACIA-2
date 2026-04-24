@@ -840,8 +840,8 @@ export default function App() {
           setIsRecording(false);
           stopLiveSession("room_deleted");
         }
-      }, (error) => {
-        console.error("Error listening to room:", error);
+      }, (err) => {
+        console.error("[Diagnostic] Room Snapshot Error:", err);
       });
 
       const qTranscripts = query(collection(db, 'rooms', roomId, 'transcripts'), orderBy('timestamp', 'asc'));
@@ -902,10 +902,9 @@ export default function App() {
             const timeB = b.createdAt || b.timestamp?.toMillis() || 0;
             return timeA - timeB;
           });
-          return merged;
-        });
-      }, (error) => {
-        console.error("Error listening to transcripts:", error);
+        setTranscripts(merged);
+      }, (err) => {
+        console.error("[Diagnostic] Transcripts Snapshot Error:", err);
       });
     }
 
@@ -1137,16 +1136,17 @@ export default function App() {
         
         if (currentUser) {
           try {
+            console.error("[Diagnostic] Attempting getDoc for room:", joinRoomIdInput.trim());
             const roomSnap = await getDoc(doc(db, 'rooms', joinRoomIdInput.trim()));
             if (roomSnap.exists()) {
               const data = roomSnap.data();
-              console.log("[Diagnostic] Room data fetched, isSharingKey:", data.isSharingKey, "apiKey present:", !!data.apiKey);
+              console.error("[Diagnostic] Room data fetched, isSharingKey:", data.isSharingKey, "apiKey present:", !!data.apiKey);
               // 強化判斷：只要 isSharingKey 為真，或者 apiKey 存在且不為空字串，即視為房間分享金鑰中
               if (data.isSharingKey || (data.apiKey && data.apiKey.trim() !== "")) {
                 setIsRoomSharingKey(true);
               }
             } else {
-              console.warn("[Diagnostic] Room document does not exist:", joinRoomIdInput.trim());
+              console.error("[Diagnostic] Room document does not exist:", joinRoomIdInput.trim());
             }
           } catch (e) {
             console.error("[Diagnostic] Error fetching room document in pre-fetch:", e);
