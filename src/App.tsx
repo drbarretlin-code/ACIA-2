@@ -378,80 +378,49 @@ export default function App() {
     if (!element || isExportingPDF) return;
 
     setIsExportingPDF(true);
-    const toastId = toast.loading('Preparing PDF...');
+    const toastId = toast.loading('Generating PDF...');
 
     try {
-      // 建立一個臨時克隆容器以避免 Modal/Scrollbar 造成的渲染崩潰
-      const clone = element.cloneNode(true) as HTMLElement;
+      // 直接提取 HTML 內容，並包裝在一個乾淨的、不含 oklch 顏色的模板中
+      // 這樣可以完全避開 Modal、滾動條以及 Tailwind 4 顏色函數導致的擷取問題
+      const contentHtml = element.innerHTML;
       
-      // 移除克隆元素的滾動限制與固定高度，確保內容完整展開
-      clone.style.width = '794px'; // 接近 A4 寬度 (210mm)
-      clone.style.height = 'auto';
-      clone.style.maxHeight = 'none';
-      clone.style.overflow = 'visible';
-      clone.style.position = 'fixed';
-      clone.style.top = '0';
-      clone.style.left = '0';
-      clone.style.zIndex = '-9999';
-      clone.style.padding = '40px'; // 增加內距讓 PDF 看起來更美觀
-      clone.style.backgroundColor = isDarkMode ? '#0f172a' : '#ffffff';
-      clone.classList.remove('overflow-y-auto');
-
-      // 核心修復：Tailwind 4 預設使用 oklch() 顏色，但 html2canvas 不支援。
-      // 我們在克隆元素中注入一個針對性的 CSS，將所有顏色強制改為相容的 Hex 格式。
-      const styleTag = document.createElement('style');
-      styleTag.innerHTML = `
-        .pdf-safe-mode {
-          font-family: sans-serif !important;
-          line-height: 1.6 !important;
-        }
-        .pdf-safe-mode, .pdf-safe-mode * {
-          color: ${isDarkMode ? '#cbd5e1' : '#334155'} !important;
-          border-color: ${isDarkMode ? '#334155' : '#e2e8f0'} !important;
-          text-shadow: none !important;
-          box-shadow: none !important;
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
-        .pdf-safe-mode h1, .pdf-safe-mode h2, .pdf-safe-mode h3 {
-          color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important;
-          margin-top: 1.5em !important;
-          margin-bottom: 0.5em !important;
-        }
-        .pdf-safe-mode h1 { font-size: 24pt !important; }
-        .pdf-safe-mode h2 { font-size: 18pt !important; border-bottom: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'} !important; padding-bottom: 5px !important; }
-        .pdf-safe-mode h3 { font-size: 14pt !important; }
-        .pdf-safe-mode p { margin: 1em 0 !important; font-size: 11pt !important; }
-        .pdf-safe-mode strong {
-          color: ${isDarkMode ? '#ffffff' : '#000000'} !important;
-          font-weight: bold !important;
-        }
-        .pdf-safe-mode blockquote {
-          background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'} !important;
-          border-left: 5px solid #3b82f6 !important;
-          padding: 10px 20px !important;
-          margin: 20px 0 !important;
-        }
-        .pdf-safe-mode code {
-          background-color: ${isDarkMode ? '#334155' : '#f1f5f9'} !important;
-          color: ${isDarkMode ? '#f1f5f9' : '#b91c1c'} !important;
-          padding: 2px 4px !important;
-          border-radius: 4px !important;
-        }
-        .pdf-safe-mode a {
-          color: #2563eb !important;
-          text-decoration: underline !important;
-        }
-        .pdf-safe-mode ul { padding-left: 20px !important; list-style-type: disc !important; }
-        .pdf-safe-mode li { margin: 0.5em 0 !important; }
+      const pdfTemplate = `
+        <div style="
+          padding: 40px; 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+          background-color: ${isDarkMode ? '#0f172a' : '#ffffff'}; 
+          color: ${isDarkMode ? '#cbd5e1' : '#334155'};
+          line-height: 1.6;
+        ">
+          <style>
+            h1 { color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important; font-size: 24pt; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
+            h2 { color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important; font-size: 18pt; margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}; padding-bottom: 5px; }
+            h3 { color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important; font-size: 14pt; margin-top: 20px; }
+            p { font-size: 11pt; margin: 12px 0; }
+            blockquote { 
+              background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'} !important; 
+              border-left: 5px solid #3b82f6 !important; 
+              padding: 15px 20px; 
+              margin: 20px 0; 
+              font-style: italic;
+            }
+            code { 
+              background-color: ${isDarkMode ? '#334155' : '#f1f5f9'} !important; 
+              color: ${isDarkMode ? '#f1f5f9' : '#b91c1c'} !important; 
+              padding: 2px 5px; 
+              border-radius: 4px; 
+              font-family: monospace;
+            }
+            ul, ol { padding-left: 25px; margin: 15px 0; }
+            li { margin-bottom: 8px; }
+            strong { color: ${isDarkMode ? '#ffffff' : '#000000'}; font-weight: bold; }
+            hr { border: none; border-top: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}; margin: 30px 0; }
+            .not-prose { all: unset; } /* 移除某些 Tailwind 類別的干擾 */
+          </style>
+          ${contentHtml}
+        </div>
       `;
-      clone.classList.add('pdf-safe-mode');
-      clone.appendChild(styleTag);
-      
-      document.body.appendChild(clone);
-
-      // 重要：給予瀏覽器足夠時間進行排版與渲染，避免擷取到空白內容
-      await new Promise(resolve => setTimeout(resolve, 300));
 
       const opt = {
         margin: [10, 10],
@@ -461,10 +430,7 @@ export default function App() {
           scale: 2, 
           useCORS: true, 
           logging: false,
-          scrollY: 0,
-          scrollX: 0,
-          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
-          windowWidth: 800
+          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff'
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
@@ -473,13 +439,11 @@ export default function App() {
       // @ts-ignore
       if (window.html2pdf) {
         // @ts-ignore
-        await window.html2pdf().set(opt).from(clone).save();
+        await window.html2pdf().from(pdfTemplate).set(opt).save();
         toast.success('PDF Downloaded!', { id: toastId });
       } else {
         toast.error('PDF library not loaded', { id: toastId });
       }
-      
-      document.body.removeChild(clone);
     } catch (error) {
       console.error('PDF Export Error:', error);
       toast.error('Export failed. Please try again.', { id: toastId });
