@@ -217,7 +217,12 @@ export default function App() {
   const [showRoomDialog, setShowRoomDialog] = useState(!new URLSearchParams(window.location.search).get('room'));
   const [joinRoomIdInput, setJoinRoomIdInput] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
   const [isRoomSharingKey, setIsRoomSharingKey] = useState(false);
-  const [isCheckingRoomKey, setIsCheckingRoomKey] = useState(!!new URLSearchParams(window.location.search).get('room'));
+  const [isCheckingRoomKey, setIsCheckingRoomKey] = useState(true);
+
+  useEffect(() => {
+    console.error("[Diagnostic] App Version: 2026-04-24-1031 (MEGA-LOG)");
+  }, []);
+  
   const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
   const [noiseSuppression, setNoiseSuppression] = useState(true);
   const [echoCancellation, setEchoCancellation] = useState(true);
@@ -691,6 +696,7 @@ export default function App() {
   // Firebase Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.error("[Diagnostic] Auth State Changed:", currentUser ? `Logged in as ${currentUser.uid} (Anonymous: ${currentUser.isAnonymous})` : "Logged out");
       setUser(currentUser);
       setIsAuthReady(true);
     });
@@ -744,9 +750,11 @@ export default function App() {
         if (roomId) {
           connData.roomId = roomId;
         }
+        console.error("[Diagnostic] Attempting setDoc for connection:", user.uid);
         await setDoc(connRef, connData);
+        console.error("[Diagnostic] Connection update success");
       } catch (e) {
-        console.error("Failed to update connection", e);
+        console.error("[Diagnostic] Failed to update connection:", e);
       }
     };
     updateConnection();
