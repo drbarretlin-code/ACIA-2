@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 import * as Y from 'yjs';
 import { Virtuoso } from 'react-virtuoso';
-import { Mic, Mic2, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield } from 'lucide-react';
+import { Mic, Mic2, Square, Globe2, AlertCircle, Loader2, Languages, Settings, Key, ArrowRightLeft, Volume2, VolumeX, MessageSquare, MessageSquareOff, Square as StopIcon, Moon, Sun, Trash2, Share2, Check, Lock, Eye, EyeOff, X, Zap, Users, LogIn, LogOut, Copy, QrCode, Info, Send, Shield, FileDown } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
 import * as OpenCC from 'opencc-js';
 import { QRCodeSVG } from 'qrcode.react';
@@ -371,6 +371,29 @@ export default function App() {
       .finally(() => { if (!cancelled) setManualLoading(false); });
     return () => { cancelled = true; };
   }, [showManual, manualLang]);
+  
+  const handleExportPDF = useCallback(() => {
+    const element = document.getElementById('manual-content');
+    if (!element) return;
+
+    const opt = {
+      margin: [15, 15],
+      filename: `TUC_Manual_${manualLang}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    // @ts-ignore
+    if (window.html2pdf) {
+      // @ts-ignore
+      window.html2pdf().set(opt).from(element).save();
+      toast.success('PDF Exporting...');
+    } else {
+      toast.error('PDF library not loaded');
+    }
+  }, [manualLang]);
 
 
 
@@ -3535,6 +3558,14 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
                   ))}
                 </select>
                 <button
+                  onClick={handleExportPDF}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-sm font-medium rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                  title={getUiText('exportPdf')}
+                >
+                  <FileDown className="w-4 h-4" />
+                  <span className="hidden sm:inline">{getUiText('exportPdf')}</span>
+                </button>
+                <button
                   onClick={() => setShowManual(false)}
                   className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
                 >
@@ -3543,7 +3574,7 @@ RPD 1,500 RPD 無硬性限制 (受預算限制)
               </div>
             </div>
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 prose prose-slate dark:prose-invert prose-sm max-w-none
+            <div id="manual-content" className="flex-1 overflow-y-auto p-6 prose prose-slate dark:prose-invert prose-sm max-w-none
               prose-table:border-collapse prose-table:w-full
               prose-th:border prose-th:border-slate-300 dark:prose-th:border-slate-600 prose-th:px-3 prose-th:py-2 prose-th:bg-slate-100 dark:prose-th:bg-slate-800 prose-th:text-left prose-th:text-xs prose-th:font-semibold
               prose-td:border prose-td:border-slate-300 dark:prose-td:border-slate-600 prose-td:px-3 prose-td:py-2 prose-td:text-sm

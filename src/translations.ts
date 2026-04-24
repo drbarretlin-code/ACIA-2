@@ -83,7 +83,8 @@ export const translations: Record<string, Record<string, string>> = {
     "settings_share_key": "Share my API Key with others",
     "settings_share_key_desc": "Careful: This will consume your quota.",
     "setup_api_key_title": "Setup API Key",
-    "setup_api_key_desc": "Please enter your Gemini API Key to start translating."
+    "setup_api_key_desc": "Please enter your Gemini API Key to start translating.",
+    "exportPdf": "Export PDF"
   },
   "en-GB": {
     "title1": "TUC",
@@ -1073,7 +1074,8 @@ export const translations: Record<string, Record<string, string>> = {
     "settings_share_key": "分享我的 API Key 給其他參與者",
     "settings_share_key_desc": "注意：這將會消耗您的 API 配額。",
     "setup_api_key_title": "設定 API 金鑰",
-    "setup_api_key_desc": "請輸入您的 Gemini API 金鑰以開始翻譯。"
+    "setup_api_key_desc": "請輸入您的 Gemini API 金鑰以開始翻譯。",
+    "exportPdf": "匯出 PDF"
   },
   "de-DE": {
     "title1": "TUC",
