@@ -1107,9 +1107,11 @@ export default function App() {
   // Auth-based auto-join must happen AFTER handleJoinRoom is defined
   useEffect(() => {
     const roomIdFromUrl = new URLSearchParams(window.location.search).get('room');
-    if (roomIdFromUrl && isAuthReady) {
+    // 如果有設定名字 (例如先前的 localStorage) 才能自動加入，否則讓 Name Dialog 攔截並由使用者手動觸發加入
+    if (roomIdFromUrl && isAuthReady && userName.trim()) {
       handleJoinRoom();
     }
+    // 不要將 userName 加入依賴陣列，只在 auth 準備好時檢查一次
   }, [isAuthReady]);
 
   const roomIdRef = useRef(roomId);
