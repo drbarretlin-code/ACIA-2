@@ -389,10 +389,11 @@ export default function App() {
       clone.style.height = 'auto';
       clone.style.maxHeight = 'none';
       clone.style.overflow = 'visible';
-      clone.style.position = 'absolute';
-      clone.style.top = '-9999px';
-      clone.style.left = '-9999px';
-      clone.style.padding = '20px';
+      clone.style.position = 'fixed';
+      clone.style.top = '0';
+      clone.style.left = '0';
+      clone.style.zIndex = '-9999';
+      clone.style.padding = '40px'; // 增加內距讓 PDF 看起來更美觀
       clone.style.backgroundColor = isDarkMode ? '#0f172a' : '#ffffff';
       clone.classList.remove('overflow-y-auto');
 
@@ -400,38 +401,60 @@ export default function App() {
       // 我們在克隆元素中注入一個針對性的 CSS，將所有顏色強制改為相容的 Hex 格式。
       const styleTag = document.createElement('style');
       styleTag.innerHTML = `
+        .pdf-safe-mode {
+          font-family: sans-serif !important;
+          line-height: 1.6 !important;
+        }
         .pdf-safe-mode, .pdf-safe-mode * {
           color: ${isDarkMode ? '#cbd5e1' : '#334155'} !important;
           border-color: ${isDarkMode ? '#334155' : '#e2e8f0'} !important;
           text-shadow: none !important;
           box-shadow: none !important;
+          visibility: visible !important;
+          opacity: 1 !important;
         }
         .pdf-safe-mode h1, .pdf-safe-mode h2, .pdf-safe-mode h3 {
           color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important;
+          margin-top: 1.5em !important;
+          margin-bottom: 0.5em !important;
         }
+        .pdf-safe-mode h1 { font-size: 24pt !important; }
+        .pdf-safe-mode h2 { font-size: 18pt !important; border-bottom: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'} !important; padding-bottom: 5px !important; }
+        .pdf-safe-mode h3 { font-size: 14pt !important; }
+        .pdf-safe-mode p { margin: 1em 0 !important; font-size: 11pt !important; }
         .pdf-safe-mode strong {
           color: ${isDarkMode ? '#ffffff' : '#000000'} !important;
+          font-weight: bold !important;
         }
         .pdf-safe-mode blockquote {
           background-color: ${isDarkMode ? '#1e293b' : '#f8fafc'} !important;
-          border-left-color: #3b82f6 !important;
+          border-left: 5px solid #3b82f6 !important;
+          padding: 10px 20px !important;
+          margin: 20px 0 !important;
         }
         .pdf-safe-mode code {
           background-color: ${isDarkMode ? '#334155' : '#f1f5f9'} !important;
           color: ${isDarkMode ? '#f1f5f9' : '#b91c1c'} !important;
+          padding: 2px 4px !important;
+          border-radius: 4px !important;
         }
         .pdf-safe-mode a {
           color: #2563eb !important;
           text-decoration: underline !important;
         }
+        .pdf-safe-mode ul { padding-left: 20px !important; list-style-type: disc !important; }
+        .pdf-safe-mode li { margin: 0.5em 0 !important; }
       `;
       clone.classList.add('pdf-safe-mode');
       clone.appendChild(styleTag);
       
       document.body.appendChild(clone);
 
+      // 重要：給予瀏覽器足夠時間進行排版與渲染，避免擷取到空白內容
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       const opt = {
-        margin: [15, 10],
+        margin: [10, 10],
         filename: `TUC_Manual_${manualLang}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
@@ -440,7 +463,8 @@ export default function App() {
           logging: false,
           scrollY: 0,
           scrollX: 0,
-          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff'
+          backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+          windowWidth: 800
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
