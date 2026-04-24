@@ -978,21 +978,21 @@ export default function App() {
         localLang: localLang || "zh-TW",
         clientLang: clientLang || "en-US",
         isSpeakingEnabled: false,
-        isClosed: false,
-        isSharingKey: isSharingKey,
-        apiKey: isSharingKey ? userApiKey : null
+        isClosed: false
+        // isSharingKey: isSharingKey,
+        // apiKey: isSharingKey ? userApiKey : null
       };
 
-      console.error("[Diagnostic] Testing Group A fields, ID:", newRoomId);
+      console.error("[Diagnostic] Testing Timestamp only, ID:", newRoomId);
       await setDoc(doc(db, 'rooms', newRoomId), roomData);
-      console.error("[Diagnostic] Group A fields success!");
+      console.error("[Diagnostic] Timestamp only success!");
       
       setRoomId(newRoomId);
       setShowRoomDialog(false);
       window.history.replaceState({}, '', `?room=${newRoomId}`);
     } catch (e: any) {
-      console.error("[Diagnostic] Group A fields failed:", e);
-      setCustomAlert({ message: "建立房間失敗（欄位測試 A）：" + e.message, type: 'alert' });
+      console.error("[Diagnostic] Timestamp only failed:", e);
+      setCustomAlert({ message: "建立房間失敗（欄位測試 B）：" + e.message, type: 'alert' });
     }
   };
 
