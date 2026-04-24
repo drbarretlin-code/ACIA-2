@@ -978,21 +978,24 @@ export default function App() {
         localLang: localLang || "zh-TW",
         clientLang: clientLang || "en-US",
         isSpeakingEnabled: false,
-        isClosed: false
+        isClosed: false,
+        apiKeyType: apiKeyType || "free",
+        projectName: projectName || ""
+        // 暫時移除以下疑似觸發權限錯誤的欄位：
+        // apiKey: isSharingKey ? userApiKey : null,
         // isSharingKey: isSharingKey,
-        // apiKey: isSharingKey ? userApiKey : null
       };
 
-      console.error("[Diagnostic] Testing Timestamp only, ID:", newRoomId);
+      console.error("[Diagnostic] Testing Group C fields, ID:", newRoomId);
       await setDoc(doc(db, 'rooms', newRoomId), roomData);
-      console.error("[Diagnostic] Timestamp only success!");
+      console.error("[Diagnostic] Group C fields success!");
       
       setRoomId(newRoomId);
       setShowRoomDialog(false);
       window.history.replaceState({}, '', `?room=${newRoomId}`);
     } catch (e: any) {
-      console.error("[Diagnostic] Timestamp only failed:", e);
-      setCustomAlert({ message: "建立房間失敗（欄位測試 B）：" + e.message, type: 'alert' });
+      console.error("[Diagnostic] Group C fields failed:", e);
+      setCustomAlert({ message: "建立房間失敗（欄位測試 C）：" + e.message, type: 'alert' });
     }
   };
 
