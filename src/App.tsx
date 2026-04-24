@@ -902,7 +902,8 @@ export default function App() {
             const timeB = b.createdAt || b.timestamp?.toMillis() || 0;
             return timeA - timeB;
           });
-        setTranscripts(merged);
+          return merged;
+        });
       }, (err) => {
         console.error("[Diagnostic] Transcripts Snapshot Error:", err);
       });
