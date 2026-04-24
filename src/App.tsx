@@ -217,11 +217,7 @@ export default function App() {
   const [showRoomDialog, setShowRoomDialog] = useState(!new URLSearchParams(window.location.search).get('room'));
   const [joinRoomIdInput, setJoinRoomIdInput] = useState(() => new URLSearchParams(window.location.search).get('room') || '');
   const [isRoomSharingKey, setIsRoomSharingKey] = useState(false);
-  const [isCheckingRoomKey, setIsCheckingRoomKey] = useState(true);
-
-  useEffect(() => {
-    console.error("[Diagnostic] App Version: 2026-04-24-1031 (MEGA-LOG)");
-  }, []);
+  const [isCheckingRoomKey, setIsCheckingRoomKey] = useState(!!new URLSearchParams(window.location.search).get('room'));
   
   const [userName, setUserName] = useState(() => localStorage.getItem('user_name') || '');
   const [noiseSuppression, setNoiseSuppression] = useState(true);
@@ -696,7 +692,6 @@ export default function App() {
   // Firebase Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.error("[Diagnostic] Auth State Changed:", currentUser ? `Logged in as ${currentUser.uid} (Anonymous: ${currentUser.isAnonymous})` : "Logged out");
       setUser(currentUser);
       setIsAuthReady(true);
     });
@@ -750,11 +745,9 @@ export default function App() {
         if (roomId) {
           connData.roomId = roomId;
         }
-        console.error("[Diagnostic] Attempting setDoc for connection:", user.uid);
         await setDoc(connRef, connData);
-        console.error("[Diagnostic] Connection update success");
       } catch (e) {
-        console.error("[Diagnostic] Failed to update connection:", e);
+        console.error("Failed to update connection", e);
       }
     };
     updateConnection();
@@ -858,7 +851,7 @@ export default function App() {
           stopLiveSession("room_deleted");
         }
       }, (err) => {
-        console.error("[Diagnostic] Room Snapshot Error:", err);
+        console.error("Room Snapshot Error:", err);
       });
 
       const qTranscripts = query(collection(db, 'rooms', roomId, 'transcripts'), orderBy('timestamp', 'asc'));
@@ -922,7 +915,7 @@ export default function App() {
           return merged;
         });
       }, (err) => {
-        console.error("[Diagnostic] Transcripts Snapshot Error:", err);
+        console.error("Transcripts Snapshot Error:", err);
       });
     }
 
@@ -951,27 +944,19 @@ export default function App() {
     } catch (e) {}
 
     let currentUser = user;
-    
-    // 如果目前是匿名使用者，或是尚未登入，且嘗試建立房間
-    if (!currentUser || currentUser.isAnonymous) {
-      // 詢問使用者是否要改用 Google 登入（獲取建立權限）
-      console.error("[Diagnostic] Current user is null or anonymous. Asking for Google login...");
+    if (!currentUser) {
       try {
-        currentUser = await signInWithGoogle();
-      } catch (err: any) {
-        console.error("[Diagnostic] Google Sign-in failed or cancelled:", err);
-        // 如果使用者取消 Google 登入，嘗試使用匿名登入作為最後手段（雖然可能失敗）
-        if (!currentUser) {
-          try {
-            currentUser = await signInAnon();
-          } catch (e) {
-            setCustomAlert({ message: "登入失敗，請確認網路連線。", type: 'alert' });
-            return;
-          }
+        currentUser = await signInAnon();
+      } catch (e) {
+        console.warn("Anonymous sign in failed, trying Google", e);
+        try {
+          currentUser = await signInWithGoogle();
+        } catch (err: any) {
+          setCustomAlert({ message: "登入失敗，請確認瀏覽器是否阻擋彈出視窗：" + err.message, type: 'alert' });
+          return;
         }
       }
     }
-    
     if (!currentUser) return;
 
     if (activeConnections >= 100) {
@@ -990,7 +975,7 @@ export default function App() {
       const roomData = {
         creatorId: currentUser.uid,
         createdAt: serverTimestamp(),
-        apiKey: isSharingKey ? (userApiKey || "") : "",
+        apiKey: isSharingKey ? userApiKey : null,
         isSharingKey: isSharingKey,
         apiKeyType: apiKeyType || "free",
         projectName: projectName || "",
@@ -1000,15 +985,12 @@ export default function App() {
         isClosed: false
       };
 
-      console.error("[Diagnostic] Attempting to create room in Firestore, ID:", newRoomId);
       await setDoc(doc(db, 'rooms', newRoomId), roomData);
-      console.error("[Diagnostic] Room creation success!");
-      
       setRoomId(newRoomId);
       setShowRoomDialog(false);
       window.history.replaceState({}, '', `?room=${newRoomId}`);
     } catch (e: any) {
-      console.error("[Diagnostic] Room creation failed:", e);
+      console.error("Failed to create room:", e);
       setCustomAlert({ message: "建立房間失敗：" + e.message, type: 'alert' });
     }
   };
@@ -1151,37 +1133,28 @@ export default function App() {
   useEffect(() => {
     if (joinRoomIdInput.trim() && isAuthReady) {
       const fetchRoomKeyStatus = async () => {
-        console.log("[Diagnostic] Pre-fetching room key status for:", joinRoomIdInput.trim());
         let currentUser = auth.currentUser;
         if (!currentUser) {
           try {
-            console.log("[Diagnostic] No current user, signing in anonymously...");
             currentUser = await signInAnon();
-            console.log("[Diagnostic] Anonymous sign-in success, UID:", currentUser.uid);
           } catch (e) {
-            console.error("[Diagnostic] Failed to sign in anonymously for pre-fetch:", e);
+            console.warn("Failed to sign in anonymously for pre-fetch", e);
           }
         }
         
         if (currentUser) {
           try {
-            console.error("[Diagnostic] Attempting getDoc for room:", joinRoomIdInput.trim());
             const roomSnap = await getDoc(doc(db, 'rooms', joinRoomIdInput.trim()));
             if (roomSnap.exists()) {
               const data = roomSnap.data();
-              console.error("[Diagnostic] Room data fetched, isSharingKey:", data.isSharingKey, "apiKey present:", !!data.apiKey);
               // 強化判斷：只要 isSharingKey 為真，或者 apiKey 存在且不為空字串，即視為房間分享金鑰中
               if (data.isSharingKey || (data.apiKey && data.apiKey.trim() !== "")) {
                 setIsRoomSharingKey(true);
               }
-            } else {
-              console.error("[Diagnostic] Room document does not exist:", joinRoomIdInput.trim());
             }
           } catch (e) {
-            console.error("[Diagnostic] Error fetching room document in pre-fetch:", e);
+            console.error("Failed to pre-fetch room key status:", e);
           }
-        } else {
-          console.error("[Diagnostic] No currentUser available after sign-in attempt, skipping pre-fetch.");
         }
         setIsCheckingRoomKey(false);
       };
@@ -2657,48 +2630,9 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                 </div>
               </div>
               <h2 className="text-2xl font-bold mb-2 text-center">{getUiText('roomTitle')}</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-4">
+              <p className="text-slate-500 dark:text-slate-400 text-sm text-center mb-8">
                 {getUiText('roomDesc')}
               </p>
-
-              {/* Login Status & Toggle */}
-              <div className="flex flex-col items-center gap-3 mb-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2 text-sm">
-                  {user && !user.isAnonymous ? (
-                    <>
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="text-slate-600 dark:text-slate-300">已登入：{user.email}</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-2 h-2 rounded-full bg-slate-400" />
-                      <span className="text-slate-600 dark:text-slate-400">目前為訪客身分 (匿名)</span>
-                    </>
-                  )}
-                </div>
-                {!user || user.isAnonymous ? (
-                  <button
-                    onClick={async () => {
-                      try {
-                        await signInWithGoogle();
-                      } catch (e) {
-                        console.error("Login failed", e);
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
-                  >
-                    <LogIn className="w-4 h-4 text-blue-600" />
-                    使用 Google 帳號登入 (建議)
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => auth.signOut()}
-                    className="text-xs text-slate-400 hover:text-red-500 transition-colors underline underline-offset-4"
-                  >
-                    登出帳號
-                  </button>
-                )}
-              </div>
 
               <div className="space-y-6">
                 <div className="space-y-3">
