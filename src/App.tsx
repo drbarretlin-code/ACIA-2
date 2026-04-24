@@ -347,6 +347,8 @@ export default function App() {
   useEffect(() => {
     if (isLocked) {
       setShowApiKeyGuide(true);
+    } else {
+      setShowApiKeyGuide(false);
     }
   }, [isLocked]);
 
