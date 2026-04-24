@@ -817,10 +817,9 @@ export default function App() {
             if (isCreator && isRemoteDisabling) {
               console.log("[Diagnostic] Ignoring remote speaker-disable update to maintain local session consistency.");
             } else if (data.isSpeakingEnabled === false || data.isSpeakingEnabled === true) {
-              // Only update if it's an explicit boolean to avoid null/undefined flickering
-              console.log(`[Diagnostic] setIsRecording(${data.isSpeakingEnabled}) from Room Listener`);
-              setIsSpeakingEnabled(data.isSpeakingEnabled);
-              setIsRecording(data.isSpeakingEnabled);
+              // 注意：依據最新需求，已解除房間廣播麥克風狀態的連動。
+              // setIsSpeakingEnabled(data.isSpeakingEnabled);
+              // setIsRecording(data.isSpeakingEnabled);
             }
           }
           // 移除從遠端強制覆蓋語系設定，讓每一個與會者（包含訪客）能自主選擇自己的 localLang 與 clientLang
@@ -1875,6 +1874,18 @@ export default function App() {
         audioContextRef.current = audioCtx;
       }
       
+      // [CRITICAL FIX FOR SAFARI iOS]
+      // 必須在任何 await 發生前（在 User Gesture Call Stack 內）同步觸發 getUserMedia。
+      // 否則 Safari 會判定為背景執行並強制拋出 NotAllowedError。
+      const streamPromise = navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation,
+          noiseSuppression,
+          autoGainControl,
+          channelCount: 1,
+        } 
+      });
+
       if (audioCtx.state === 'suspended') {
         try {
           await audioCtx.resume();
@@ -1885,14 +1896,7 @@ export default function App() {
 
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation,
-            noiseSuppression,
-            autoGainControl,
-            channelCount: 1,
-          } 
-        });
+        stream = await streamPromise;
       } catch (err: any) {
         console.warn("初次嘗試麥克風存取失敗，嘗試使用基礎參數重試...", err);
         try {
@@ -2360,9 +2364,10 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
     
     if (roomId) {
       try {
-        await updateDoc(doc(db, 'rooms', roomId), {
+        // [修改需求] 解除連動：不再將本地的錄音權限同步到房間的 global 狀態，讓每位使用者都能自主發言
+        /* await updateDoc(doc(db, 'rooms', roomId), {
           isSpeakingEnabled: newState
-        });
+        }); */
       } catch (e) {
         console.error("Failed to sync recording state to Firestore:", e);
       }
