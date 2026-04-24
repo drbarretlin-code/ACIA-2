@@ -992,12 +992,15 @@ export default function App() {
         isClosed: false
       };
 
+      console.error("[Diagnostic] Attempting to create room in Firestore, ID:", newRoomId);
       await setDoc(doc(db, 'rooms', newRoomId), roomData);
+      console.error("[Diagnostic] Room creation success!");
+      
       setRoomId(newRoomId);
       setShowRoomDialog(false);
       window.history.replaceState({}, '', `?room=${newRoomId}`);
     } catch (e: any) {
-      console.error(e);
+      console.error("[Diagnostic] Room creation failed:", e);
       setCustomAlert({ message: "建立房間失敗：" + e.message, type: 'alert' });
     }
   };
