@@ -1130,24 +1130,34 @@ export default function App() {
 
   // Pre-fetch isSharingKey if user is joining via URL
   useEffect(() => {
-    if (joinRoomIdInput.trim()) {
+    if (joinRoomIdInput.trim() && isAuthReady) {
       const fetchRoomKeyStatus = async () => {
-        try {
-          const roomSnap = await getDoc(doc(db, 'rooms', joinRoomIdInput.trim()));
-          if (roomSnap.exists()) {
-            const data = roomSnap.data();
-            if (data.isSharingKey) {
-              setIsRoomSharingKey(true);
-            }
+        let currentUser = auth.currentUser;
+        if (!currentUser) {
+          try {
+            currentUser = await signInAnon();
+          } catch (e) {
+            console.warn("Failed to sign in anonymously for pre-fetch", e);
           }
-        } catch (e) {
-          console.error("Failed to pre-fetch room key status:", e);
+        }
+        
+        if (currentUser) {
+          try {
+            const roomSnap = await getDoc(doc(db, 'rooms', joinRoomIdInput.trim()));
+            if (roomSnap.exists()) {
+              const data = roomSnap.data();
+              if (data.isSharingKey) {
+                setIsRoomSharingKey(true);
+              }
+            }
+          } catch (e) {
+            console.error("Failed to pre-fetch room key status:", e);
+          }
         }
       };
       fetchRoomKeyStatus();
     }
-  }, [joinRoomIdInput]);
-
+  }, [joinRoomIdInput, isAuthReady]);
   // Yjs Foundation
   const ydocRef = useRef<Y.Doc>(new Y.Doc());
   const yTranscriptsRef = useRef<Y.Array<any>>(ydocRef.current.getArray('transcripts'));
