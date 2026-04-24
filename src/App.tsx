@@ -1226,6 +1226,14 @@ export default function App() {
     return () => clearTimeout(handler);
   }, [userApiKey, apiTier, isSharingKey, roomId, user, roomCreatorId]);
 
+  // 強制規則：一旦進入房間，關閉所有入口對話框
+  useEffect(() => {
+    if (roomId) {
+      setShowNameDialog(false);
+      setShowRoomDialog(false);
+    }
+  }, [roomId]);
+
   useEffect(() => {
     localStorage.setItem('header_title_1', headerTitle1);
   }, [headerTitle1]);
@@ -2656,7 +2664,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                   <div className="relative">
                     <input
                       type={showApiKey ? "text" : "password"}
-                      placeholder={getUiText('apiKeyLabel')}
+                      placeholder={isRoomSharingKey ? "房主已共享金鑰，可留空" : getUiText('apiKeyLabel')}
                       value={userApiKey}
                       onChange={(e) => setUserApiKey(e.target.value)}
                       className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all pr-24"
