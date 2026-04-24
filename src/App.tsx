@@ -768,6 +768,8 @@ export default function App() {
         }
       });
       setActiveConnections(count);
+    }, (err) => {
+      console.warn("Connections Snapshot Error (expected if not admin):", err);
     });
 
     // 3. Listen to Room Transcripts if roomId exists
@@ -1121,12 +1123,15 @@ export default function App() {
   useEffect(() => {
     if (joinRoomIdInput.trim() && isAuthReady) {
       const fetchRoomKeyStatus = async () => {
+        console.log("[Diagnostic] Pre-fetching room key status for:", joinRoomIdInput.trim());
         let currentUser = auth.currentUser;
         if (!currentUser) {
           try {
+            console.log("[Diagnostic] No current user, signing in anonymously...");
             currentUser = await signInAnon();
+            console.log("[Diagnostic] Anonymous sign-in success, UID:", currentUser.uid);
           } catch (e) {
-            console.warn("Failed to sign in anonymously for pre-fetch", e);
+            console.error("[Diagnostic] Failed to sign in anonymously for pre-fetch:", e);
           }
         }
         
@@ -1135,14 +1140,19 @@ export default function App() {
             const roomSnap = await getDoc(doc(db, 'rooms', joinRoomIdInput.trim()));
             if (roomSnap.exists()) {
               const data = roomSnap.data();
+              console.log("[Diagnostic] Room data fetched, isSharingKey:", data.isSharingKey, "apiKey present:", !!data.apiKey);
               // 強化判斷：只要 isSharingKey 為真，或者 apiKey 存在且不為空字串，即視為房間分享金鑰中
               if (data.isSharingKey || (data.apiKey && data.apiKey.trim() !== "")) {
                 setIsRoomSharingKey(true);
               }
+            } else {
+              console.warn("[Diagnostic] Room document does not exist:", joinRoomIdInput.trim());
             }
           } catch (e) {
-            console.error("Failed to pre-fetch room key status:", e);
+            console.error("[Diagnostic] Error fetching room document in pre-fetch:", e);
           }
+        } else {
+          console.error("[Diagnostic] No currentUser available after sign-in attempt, skipping pre-fetch.");
         }
         setIsCheckingRoomKey(false);
       };
