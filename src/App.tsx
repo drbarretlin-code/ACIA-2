@@ -368,22 +368,7 @@ export default function App() {
     return () => { cancelled = true; };
   }, [showManual, manualLang]);
 
-  // Sync isSharingKey to Firestore room document
-  useEffect(() => {
-    if (!roomId || !user || !roomCreatorId || user.uid !== roomCreatorId) return;
 
-    const syncSharingState = async () => {
-      try {
-        await updateDoc(doc(db, 'rooms', roomId), {
-          apiKey: isSharingKey ? (userApiKey || "") : ""
-        });
-      } catch (e) {
-        console.error("[BYOK] Failed to sync sharing state:", e);
-      }
-    };
-
-    syncSharingState();
-  }, [isSharingKey, roomId, user, roomCreatorId, userApiKey]);
 
   // Persist isSharingKey to local storage
   useEffect(() => {
@@ -979,6 +964,7 @@ export default function App() {
         creatorId: currentUser.uid,
         createdAt: serverTimestamp(),
         apiKey: isSharingKey ? (userApiKey || "") : "",
+        isSharingKey: isSharingKey,
         apiKeyType: apiKeyType || "free",
         projectName: projectName || "",
         localLang: localLang || "zh-TW",
@@ -1053,6 +1039,7 @@ export default function App() {
         }
         setRoomId(joinRoomIdInput.trim());
         setShowRoomDialog(false);
+        setShowNameDialog(false); // 確保成功加入後關閉對話框
         window.history.replaceState({}, '', `?room=${joinRoomIdInput.trim()}`);
       } else {
         setCustomAlert({ message: "找不到此房間代碼", type: 'alert' });
@@ -1115,14 +1102,15 @@ export default function App() {
     }
   }, [localLang, clientLang, roomId, user, roomCreatorId]);
 
-  // Auth-based auto-join must happen AFTER handleJoinRoom is defined
+  // 移除 Auth-based auto-join，確保連線者一律先看到 Name Dialog 並由點擊觸發連線
+  /*
   useEffect(() => {
     const roomIdFromUrl = new URLSearchParams(window.location.search).get('room');
     if (roomIdFromUrl && isAuthReady) {
-      // 呼叫 handleJoinRoom，其內部會強制檢查 userName，若為空將直接 abort 並顯示 Name Dialog
       handleJoinRoom();
     }
   }, [isAuthReady]);
+  */
 
   const roomIdRef = useRef(roomId);
   useEffect(() => {
@@ -1147,7 +1135,8 @@ export default function App() {
             const roomSnap = await getDoc(doc(db, 'rooms', joinRoomIdInput.trim()));
             if (roomSnap.exists()) {
               const data = roomSnap.data();
-              if (data.isSharingKey) {
+              // 強化判斷：只要 isSharingKey 為真，或者 apiKey 存在且不為空字串，即視為房間分享金鑰中
+              if (data.isSharingKey || (data.apiKey && data.apiKey.trim() !== "")) {
                 setIsRoomSharingKey(true);
               }
             }
@@ -2563,7 +2552,8 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                 </div>
               )}
               <button
-                // 依據需求：供連線者選擇性輸入，移除 disabled 限制
+                // 依據需求：供連線者選擇性輸入，移除 disabled 限制，但正在檢查狀態時仍應等待
+                disabled={isCheckingRoomKey}
                 onClick={() => {
                   // 如果使用者未輸入（選擇性輸入為空），給予預設名稱
                   const finalName = tempName.trim() || "Unknown User";
@@ -2576,17 +2566,17 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                     localStorage.removeItem('gemini_api_key');
                   }
 
-                  setShowNameDialog(false);
                   // Directly join the room if a room ID is already in the URL
                   if (joinRoomIdInput.trim()) {
                     handleJoinRoom(finalName);
                   } else {
+                    setShowNameDialog(false);
                     setShowRoomDialog(true);
                   }
                 }}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all"
+                className={`w-full py-3 ${isCheckingRoomKey ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-xl font-medium transition-all`}
               >
-                {getUiText('confirmAndEnter')}
+                {isCheckingRoomKey ? 'Checking...' : getUiText('confirmAndEnter')}
               </button>
               <button
                 onClick={() => { setManualLang(getManualLangForLocale(uiLang)); setShowManual(true); }}
