@@ -2085,7 +2085,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
               clearTimeout(reconnectTimeoutRef.current);
               reconnectTimeoutRef.current = null;
             }
-            setupSpeechRecognition();
             // 重連成功後清除備援提示
             toast.dismiss('voice-fallback');
             if (reconnectCountRef.current > 0) {
