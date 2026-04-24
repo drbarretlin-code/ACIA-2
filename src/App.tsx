@@ -380,39 +380,35 @@ export default function App() {
     setIsExportingPDF(true);
     const toastId = toast.loading('Generating PDF...');
 
-    // 用於恢復樣式表的陣列
-    const disabledSheets: StyleSheet[] = [];
-
     try {
-      // 核心修復：暫時停用主頁面的所有樣式表。
-      // html2canvas 會掃描所有的 document.styleSheets，遇到 Tailwind 4 的 oklch() 就會崩潰。
-      // 由於我們使用的是獨立的 HTML 模板字串，裡面已經內建了導出所需的樣式，所以停用主頁面樣式不會影響導出內容。
-      if (document.styleSheets) {
-        Array.from(document.styleSheets).forEach(sheet => {
-          try {
-            // 檢查是否為外部樣式表或本地樣式
-            if (!sheet.disabled) {
-              sheet.disabled = true;
-              disabledSheets.push(sheet);
-            }
-          } catch (e) {
-            // 忽略跨網域樣式表的存取限制錯誤
-          }
-        });
-      }
+      // 核心修復：使用 Iframe 進行樣式隔離
+      // html2canvas 會掃描當前 document 的所有樣式表。透過在一個乾淨的 iframe 中渲染，
+      // 可以完全切斷與主頁面 Tailwind 4 (oklch) 樣式的聯繫。
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.top = '0';
+      iframe.style.left = '0';
+      iframe.style.width = '800px';
+      iframe.style.height = '1000px';
+      iframe.style.visibility = 'hidden';
+      iframe.style.zIndex = '-9999';
+      document.body.appendChild(iframe);
 
-      // 直接提取 HTML 內容，並包裝在一個乾淨的、不含 oklch 顏色的模板中
       const contentHtml = element.innerHTML;
-      
       const pdfTemplate = `
-        <div style="
-          padding: 40px; 
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-          background-color: ${isDarkMode ? '#0f172a' : '#ffffff'}; 
-          color: ${isDarkMode ? '#cbd5e1' : '#334155'};
-          line-height: 1.6;
-        ">
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
           <style>
+            body {
+              padding: 40px; 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+              background-color: ${isDarkMode ? '#0f172a' : '#ffffff'}; 
+              color: ${isDarkMode ? '#cbd5e1' : '#334155'};
+              line-height: 1.6;
+              margin: 0;
+            }
             h1 { color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important; font-size: 24pt; margin-bottom: 20px; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
             h2 { color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important; font-size: 18pt; margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}; padding-bottom: 5px; }
             h3 { color: ${isDarkMode ? '#f8fafc' : '#0f172a'} !important; font-size: 14pt; margin-top: 20px; }
@@ -436,9 +432,22 @@ export default function App() {
             strong { color: ${isDarkMode ? '#ffffff' : '#000000'}; font-weight: bold; }
             hr { border: none; border-top: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}; margin: 30px 0; }
           </style>
+        </head>
+        <body>
           ${contentHtml}
-        </div>
+        </body>
+        </html>
       `;
+
+      const iframeDoc = iframe.contentWindow?.document;
+      if (!iframeDoc) throw new Error('Could not create iframe document');
+
+      iframeDoc.open();
+      iframeDoc.write(pdfTemplate);
+      iframeDoc.close();
+
+      // 等待 Iframe 內容與字體加載
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const opt = {
         margin: [10, 10],
@@ -457,19 +466,17 @@ export default function App() {
       // @ts-ignore
       if (window.html2pdf) {
         // @ts-ignore
-        await window.html2pdf().from(pdfTemplate).set(opt).save();
+        await window.html2pdf().from(iframeDoc.body).set(opt).save();
         toast.success('PDF Downloaded!', { id: toastId });
       } else {
         toast.error('PDF library not loaded', { id: toastId });
       }
+
+      document.body.removeChild(iframe);
     } catch (error) {
       console.error('PDF Export Error:', error);
       toast.error('Export failed. Please try again.', { id: toastId });
     } finally {
-      // 恢復所有樣式表
-      disabledSheets.forEach(sheet => {
-        sheet.disabled = false;
-      });
       setIsExportingPDF(false);
     }
   }, [manualLang, isExportingPDF, isDarkMode]);
