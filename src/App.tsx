@@ -381,21 +381,19 @@ export default function App() {
     const toastId = toast.loading('Generating PDF...');
 
     try {
-      // 使用 dom-to-image 將內容轉換為高品質圖片
-      // 這比 html2canvas 方案更穩定，因為它主要處理可視 DOM 的渲染，不會掃描全域樣式表。
       // @ts-ignore
-      if (!window.domtoimage || !window.jspdf) {
-        throw new Error('PDF libraries not loaded');
+      const domtoimage = window.domtoimage;
+      // @ts-ignore
+      const jspdfObj = window.jspdf;
+
+      if (!domtoimage || !jspdfObj) {
+        throw new Error('PDF libraries not loaded. Please refresh the page.');
       }
 
-      // 暫時微調樣式以利擷取
-      const originalScrollHeight = element.style.height;
-      const originalMaxHeight = element.style.maxHeight;
-      const originalOverflow = element.style.overflow;
-      
+      const { jsPDF } = jspdfObj;
+
       // 確保擷取到完整內容
-      // @ts-ignore
-      const dataUrl = await window.domtoimage.toPng(element, {
+      const dataUrl = await domtoimage.toPng(element, {
         bgcolor: isDarkMode ? '#0f172a' : '#ffffff',
         quality: 0.95,
         width: 800,
