@@ -222,7 +222,11 @@ export default function App() {
   const [echoCancellation, setEchoCancellation] = useState(true);
   const [autoGainControl, setAutoGainControl] = useState(true);
   const [gainValue, setGainValue] = useState(1);
-  const [showNameDialog, setShowNameDialog] = useState(!localStorage.getItem('user_name'));
+  const [showNameDialog, setShowNameDialog] = useState(() => {
+    // 只要是網址進來的，強制顯示 Name Dialog 讓連線者可以選擇性輸入
+    if (new URLSearchParams(window.location.search).get('room')) return true;
+    return !localStorage.getItem('user_name');
+  });
   const [tempName, setTempName] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyType, setApiKeyType] = useState<'free' | 'paid'>(() => (localStorage.getItem('api_key_type') as 'free' | 'paid') || 'free');
@@ -2540,19 +2544,28 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                 </div>
               )}
               <button
-                disabled={!tempName.trim()}
+                // 依據需求：供連線者選擇性輸入，移除 disabled 限制
                 onClick={() => {
-                  setUserName(tempName);
-                  localStorage.setItem('user_name', tempName);
+                  // 如果使用者未輸入（選擇性輸入為空），給予預設名稱
+                  const finalName = tempName.trim() || "Unknown User";
+                  setUserName(finalName);
+                  localStorage.setItem('user_name', finalName);
+                  
+                  // [核心修正] 若系統已抓到房間分享金鑰狀態，參與者點擊確認時，應清空其本地的舊金鑰，確保強勢套用房主金鑰
+                  if (isRoomSharingKey) {
+                    setUserApiKey('');
+                    localStorage.removeItem('gemini_api_key');
+                  }
+
                   setShowNameDialog(false);
                   // Directly join the room if a room ID is already in the URL
                   if (joinRoomIdInput.trim()) {
-                    handleJoinRoom(tempName);
+                    handleJoinRoom(finalName);
                   } else {
                     setShowRoomDialog(true);
                   }
                 }}
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all"
               >
                 {getUiText('confirmAndEnter')}
               </button>
