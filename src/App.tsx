@@ -972,31 +972,27 @@ export default function App() {
     try {
       const newRoomId = Math.random().toString(36).substring(2, 9);
       
-      // [DEBUG] 使用最精簡的資料結構，嘗試找出是哪個欄位觸發權限問題
       const roomData = {
         creatorId: currentUser.uid,
-        createdAt: new Date(), // 嘗試不用 serverTimestamp()
+        createdAt: serverTimestamp(),
         localLang: localLang || "zh-TW",
         clientLang: clientLang || "en-US",
         isSpeakingEnabled: false,
-        isClosed: false
-        // 暫時移除以下欄位進行測試：
-        // apiKey: isSharingKey ? userApiKey : null,
-        // isSharingKey: isSharingKey,
-        // apiKeyType: apiKeyType || "free",
-        // projectName: projectName || ""
+        isClosed: false,
+        isSharingKey: isSharingKey,
+        apiKey: isSharingKey ? userApiKey : null
       };
 
-      console.error("[Diagnostic] Testing MINIMAL room creation, ID:", newRoomId);
+      console.error("[Diagnostic] Testing Group A fields, ID:", newRoomId);
       await setDoc(doc(db, 'rooms', newRoomId), roomData);
-      console.error("[Diagnostic] MINIMAL Room creation success!");
+      console.error("[Diagnostic] Group A fields success!");
       
       setRoomId(newRoomId);
       setShowRoomDialog(false);
       window.history.replaceState({}, '', `?room=${newRoomId}`);
     } catch (e: any) {
-      console.error("[Diagnostic] MINIMAL Room creation failed:", e);
-      setCustomAlert({ message: "建立房間失敗（權限測試）：" + e.message, type: 'alert' });
+      console.error("[Diagnostic] Group A fields failed:", e);
+      setCustomAlert({ message: "建立房間失敗（欄位測試 A）：" + e.message, type: 'alert' });
     }
   };
 
