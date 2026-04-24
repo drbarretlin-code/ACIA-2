@@ -753,34 +753,25 @@ export default function App() {
     updateConnection();
     const connInterval = setInterval(updateConnection, 30000); // Heartbeat every 30s
 
-    // 2. Listen to active connections (Only for Room Creator or Admin to avoid permission errors for anonymous users)
-    let unsubConnections = () => {};
-    // 只有房主或已知身分者才嘗試監聽全體連線（需配合 Firestore Rules）
-    const isCreator = roomId && user?.uid === roomCreatorId;
-    
-    // 如果是匿名使用者且不是房主，跳過全體連線監聽以避免 "Missing or insufficient permissions"
-    if (isCreator || !user?.isAnonymous) {
-      const qConnections = query(collection(db, 'connections'));
-      unsubConnections = onSnapshot(qConnections, (snapshot) => {
-        // Count connections active in the last 2 minutes
-        const now = Date.now();
-        let count = 0;
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          if (data.lastActive) {
-            const lastActiveMs = data.lastActive.toMillis();
-            if (now - lastActiveMs < 120000) {
-              count++;
-            }
+    // 2. Listen to active connections
+    const qConnections = query(collection(db, 'connections'));
+    const unsubConnections = onSnapshot(qConnections, (snapshot) => {
+      // Count connections active in the last 2 minutes
+      const now = Date.now();
+      let count = 0;
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.lastActive) {
+          const lastActiveMs = data.lastActive.toMillis();
+          if (now - lastActiveMs < 120000) {
+            count++;
           }
-        });
-        setActiveConnections(count);
-      }, (err) => {
-        console.warn("Connections Snapshot Warning:", err);
+        }
       });
-    } else {
-      // Anonymous joiners skip this to avoid permission warnings
-    }
+      setActiveConnections(count);
+    }, (err) => {
+      console.warn("Connections Snapshot Warning (Expected for some users):", err);
+    });
 
     // 3. Listen to Room Transcripts if roomId exists
     let unsubTranscripts: () => void;
@@ -925,7 +916,7 @@ export default function App() {
       if (unsubTranscripts) unsubTranscripts();
       if (unsubRoom) unsubRoom();
     };
-  }, [isAuthReady, user, roomId]);
+  }, [isAuthReady, user, roomId, roomCreatorId]);
 
   const handleCreateRoom = async () => {
     // 【解鎖 Web Audio】
