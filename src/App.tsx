@@ -993,7 +993,14 @@ export default function App() {
     }
   };
 
-  const handleJoinRoom = async () => {
+  const handleJoinRoom = async (nameOverride?: string) => {
+    // 【強制檢查：攔截無名者】
+    // 若沒有提供有效名稱，則中斷自動連線並強制開啟 Name Dialog
+    const effectiveName = nameOverride || userName;
+    if (!effectiveName.trim()) {
+      setShowNameDialog(true);
+      return;
+    }
     // 【解鎖 Web Audio】
     try {
       if (!audioContextRef.current) {
@@ -1107,11 +1114,10 @@ export default function App() {
   // Auth-based auto-join must happen AFTER handleJoinRoom is defined
   useEffect(() => {
     const roomIdFromUrl = new URLSearchParams(window.location.search).get('room');
-    // 如果有設定名字 (例如先前的 localStorage) 才能自動加入，否則讓 Name Dialog 攔截並由使用者手動觸發加入
-    if (roomIdFromUrl && isAuthReady && userName.trim()) {
+    if (roomIdFromUrl && isAuthReady) {
+      // 呼叫 handleJoinRoom，其內部會強制檢查 userName，若為空將直接 abort 並顯示 Name Dialog
       handleJoinRoom();
     }
-    // 不要將 userName 加入依賴陣列，只在 auth 準備好時檢查一次
   }, [isAuthReady]);
 
   const roomIdRef = useRef(roomId);
@@ -2536,7 +2542,7 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
                   setShowNameDialog(false);
                   // Directly join the room if a room ID is already in the URL
                   if (joinRoomIdInput.trim()) {
-                    handleJoinRoom();
+                    handleJoinRoom(tempName);
                   } else {
                     setShowRoomDialog(true);
                   }
