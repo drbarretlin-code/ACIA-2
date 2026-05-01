@@ -1,10 +1,10 @@
 {
   "projectId": "acia-translator-new",
   "appId": "1:693036435829:web:6a70361d0e089afd3feb3c",
-  "apiKey": "AIzaSyDheTDSnmqDhnVRb_ZEzriAPbBulMUfgaE",
+  "apiKey": "AIzaSyC11kLMQ_GTsEQ7xmJlFINNCgAp3W6600g",
   "authDomain": "acia-translator-new.firebaseapp.com",
   "firestoreDatabaseId": "(default)",
-  "storageBucket": "acia-translator-new.appspot.com",
+  "storageBucket": "acia-translator-new.firebasestorage.app",
   "messagingSenderId": "693036435829",
   "measurementId": ""
 }
