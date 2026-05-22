@@ -2785,9 +2785,6 @@ CRITICAL: Translate user's speech immediately without filler. Output only transl
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 shadow-sm z-10 flex-shrink-0 transition-colors duration-300">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center min-w-[30px]">
-              <span className="text-red-600 dark:text-red-500 font-bold text-xl tracking-wider">{headerTitle1}</span>
-            </div>
             <h1 className="text-base font-semibold tracking-tight">{headerTitle2}</h1>
           </div>
           

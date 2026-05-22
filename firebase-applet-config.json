@@ -4,7 +4,7 @@
   "apiKey": "AIzaSyC11kLMQ_GTsEQ7xmJlFINNCgAp3W6600g",
   "authDomain": "acia-translator-new.firebaseapp.com",
   "firestoreDatabaseId": "(default)",
-  "storageBucket": "acia-translator-new.firebasestorage.app",
+  "storageBucket": "acia-translator-new.appspot.com",
   "messagingSenderId": "693036435829",
   "measurementId": ""
 }
